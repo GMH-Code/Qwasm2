@@ -80,7 +80,7 @@ compress_for_stbiw(unsigned char *data, int data_len, int *out_len, int quality)
 void VID_WriteScreenshot(int width, int height, int comp, const void* data)
 {
 #ifdef __EMSCRIPTEN__
-	Com_Printf("Screenshots are disabled in Quake2-WASM.\n");
+	Com_Printf("Screenshots are disabled in Qwasm2.\n");
 #else
 	char picname[80];
 	char checkname[MAX_OSPATH];

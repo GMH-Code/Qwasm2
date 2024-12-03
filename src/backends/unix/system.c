@@ -561,7 +561,7 @@ Sys_GetHomeDir(void)
 #endif
 
 #ifdef __EMSCRIPTEN__
-	snprintf(gdir, sizeof(gdir), "/quake2-wasm");
+	snprintf(gdir, sizeof(gdir), "/qwasm2");
 #else
 	home = getenv("HOME");
 

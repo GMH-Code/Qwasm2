@@ -33,8 +33,8 @@ void wasm_init_fs(void)
 	// Fetch from IDBFS in the background
 	EM_ASM(
 		Module.restore_busy = 1;
-		FS.mkdir("/quake2-wasm");
-		FS.mount(IDBFS, {}, "/quake2-wasm");
+		FS.mkdir("/qwasm2");
+		FS.mount(IDBFS, {}, "/qwasm2");
 		console.info("Loading data...");
 		FS.syncfs(true, function (err) {
 			if (err)

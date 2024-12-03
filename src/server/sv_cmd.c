@@ -541,7 +541,7 @@ void
 SV_ServerRecord_f(void)
 {
 #ifdef __EMSCRIPTEN__
-	Com_Printf("Recording server demos is disabled in Quake2-WASM.\n");
+	Com_Printf("Recording server demos is disabled in Qwasm2.\n");
 #else
 	char name[MAX_OSPATH];
 	byte buf_data[32768];
