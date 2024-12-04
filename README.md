@@ -109,7 +109,7 @@ To do this, you can start the game with `+set vid_renderer soft +set r_mode 21`.
 
 In Qwasm2, you can append a single `?` to the end of the URL and place `&` between each parameter and value, where you would usually put a space.  This would look something like:
 
-    https://127.0.0.1/quake2.html?+set&vid_renderer&soft&+set&r_mode&21
+    https://127.0.0.1/?+set&vid_renderer&soft&+set&r_mode&21
 
 Recording Demos
 ---------------
@@ -217,18 +217,16 @@ Now run the GL4ES *Emscripten* build according to the instructions on: https://p
 
 The build will output the following into the `release` folder:
 
-    quake2.html
-    quake2.js
-    quake2.data
-    quake2.wasm
+    index.html
+    index.js
+    index.data
+    index.wasm
     game_baseq2.wasm
     ref_soft.wasm
     ref_gl1.wasm
     ref_gles3.wasm
 
 Note that the game will not properly boot without PAK and/or other files being present in `wasm/baseq2`.  It is not legal to host nor embed any of the original game's PAK files (or their contents) on a public server, regardless of whether you have the demo or full version, so do not be tempted to do this.  In any case, licence compliance is your responsibility.
-
-You can rename `quake2.html` to `index.html` or `index.htm`, if you wish.
 
 To massively reduce bandwidth and download time, compress all the files using GZip (or better, Brotli) compression, host the files statically, and verify the web browser is doing the decompression for each file.
 

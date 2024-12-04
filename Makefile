@@ -477,9 +477,9 @@ else # not Windows
 
 ifeq ($(YQ2_OSTYPE), Emscripten)
 client:
-	@echo "===> Building quake2.html"
+	@echo "===> Building index.html"
 	${Q}mkdir -p release
-	$(MAKE) release/quake2.html
+	$(MAKE) release/index.html
 else
 client:
 	@echo "===> Building quake2"
@@ -500,7 +500,7 @@ build/client/%.o: %.c
 endif
 
 ifeq ($(YQ2_OSTYPE), Emscripten)
-release/quake2.html : CFLAGS += -Wno-unused-result
+release/index.html : CFLAGS += -Wno-unused-result
 else
 release/quake2 : CFLAGS += -Wno-unused-result
 endif
@@ -553,8 +553,8 @@ release/quake2 : LDLIBS += -lexecinfo
 endif
 
 ifeq ($(YQ2_OSTYPE), Emscripten)
-release/quake2.html : CFLAGS += -fPIC
-release/quake2.html : LDFLAGS += -sFULL_ES2=1 -sFULL_ES3=1 -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 -sMAIN_MODULE=2 \
+release/index.html : CFLAGS += -fPIC
+release/index.html : LDFLAGS += -sFULL_ES2=1 -sFULL_ES3=1 -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 -sMAIN_MODULE=2 \
                                  -sINITIAL_MEMORY=128MB -sTOTAL_STACK=4MB -sALLOW_MEMORY_GROWTH \
                                  --shell-file wasm/shell.html --preload-file=wasm/baseq2@/baseq2 \
                                  release/ref_soft.wasm release/ref_gl1.wasm release/ref_gles3.wasm \
@@ -1216,8 +1216,12 @@ release/yquake2.exe : $(CLIENT_OBJS) icon
 release/quake2.exe : src/win-wrapper/wrapper.c icon
 	$(Q)$(CC) -Wall -mwindows build/icon/icon.res src/win-wrapper/wrapper.c -o $@
 	$(Q)strip $@
+else ifeq ($(YQ2_OSTYPE), Emscripten)
+release/index.html : $(CLIENT_OBJS)
+	@echo "===> LD $@"
+	${Q}$(CC) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) $(SDLLDFLAGS) -o $@
 else
-release/quake2.html : $(CLIENT_OBJS)
+release/quake2 : $(CLIENT_OBJS)
 	@echo "===> LD $@"
 	${Q}$(CC) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) $(SDLLDFLAGS) -o $@
 endif
