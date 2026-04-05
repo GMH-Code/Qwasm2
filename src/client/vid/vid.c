@@ -116,7 +116,7 @@ void VID_WriteScreenshot(int width, int height, int comp, const void* data)
 		if (argc > 2)
 		{
 			const char* q = Cmd_Argv(2);
-			int qualityStrLen = strlen(q);
+			size_t qualityStrLen = strlen(q);
 
 			for (i = 0; i < qualityStrLen; ++i)
 			{
@@ -252,6 +252,7 @@ vidmode_t vid_modes[] = {
 	{"Mode 29: 3840x2160", 3840, 2160, 29},
 	{"Mode 30: 4096x2160", 4096, 2160, 30},
 	{"Mode 31: 5120x2880", 5120, 2880, 31},
+	{"Mode 32: 1600x900", 1600, 900, 32},
 };
 
 #define VID_NUM_MODES (sizeof(vid_modes) / sizeof(vid_modes[0]))
@@ -259,7 +260,7 @@ vidmode_t vid_modes[] = {
 /*
  * Callback function for the 'vid_listmodes' cmd.
  */
-void
+static void
 VID_ListModes_f(void)
 {
 	int i;
@@ -276,7 +277,7 @@ VID_ListModes_f(void)
 /*
  * Returns informations about the given mode.
  */
-qboolean
+static qboolean
 VID_GetModeInfo(int *width, int *height, int mode)
 {
 	if ((mode < 0) || (mode >= VID_NUM_MODES))
@@ -359,7 +360,7 @@ VID_HasRenderer(const char *renderer)
 /*
  * Called by the renderer to request a restart.
  */
-void
+static void
 VID_RequestRestart(ref_restart_t rs)
 {
 	restart_state = rs;
@@ -368,7 +369,7 @@ VID_RequestRestart(ref_restart_t rs)
 /*
  * Restarts the renderer.
  */
-void
+static void
 VID_Restart_f(void)
 {
 	if (restart_state == RESTART_UNDEF)
@@ -382,7 +383,7 @@ VID_Restart_f(void)
 /*
  * Shuts the renderer down and unloads it.
  */
-void
+static void
 VID_ShutdownRenderer(void)
 {
 	if (ref_active)
@@ -393,6 +394,8 @@ VID_ShutdownRenderer(void)
 		Sys_FreeLibrary(reflib_handle);
 		reflib_handle = NULL;
 		memset(&re, 0, sizeof(re));
+
+		CL_ClearTEntModels();
 	}
 
 	// Declare the refresher as inactive
@@ -413,7 +416,7 @@ WASM_RequestPageReload(void)
 /*
  * Loads and initializes a renderer.
  */
-qboolean
+static qboolean
 VID_LoadRenderer(void)
 {
 	refimport_t	ri;
@@ -462,7 +465,7 @@ VID_LoadRenderer(void)
 	}
 
 	// Mkay, let's load the requested renderer.
-	GetRefAPI = Sys_LoadLibrary(reflib_path, "GetRefAPI", &reflib_handle);
+	GetRefAPI = (GetRefAPI_t)Sys_LoadLibrary(reflib_path, "GetRefAPI", &reflib_handle);
 
 	// Okay, we couldn't load it. It's up to the
 	// caller to recover from this.
@@ -514,9 +517,17 @@ VID_LoadRenderer(void)
 	// Let's check if we've got a compatible renderer.
 	if (re.api_version != API_VERSION)
 	{
+		Com_Printf("%s has incompatible api_version %d!\n", reflib_name, re.api_version);
+
 		VID_ShutdownRenderer();
 
-		Com_Printf("%s has incompatible api_version %d!\n", reflib_name, re.api_version);
+		return false;
+	}
+	else if (re.framework_version != GLimp_GetFrameworkVersion())
+	{
+		Com_Printf("%s has incompatible sdl_version %d!\n", reflib_name, re.framework_version);
+
+		VID_ShutdownRenderer();
 
 		return false;
 	}
@@ -598,9 +609,11 @@ VID_CheckChanges(void)
 		// Mkay, let's try our luck.
 		while (!VID_LoadRenderer())
 		{
-			// We try: custom -> gl3 -> gl1 -> soft.
+			// We try: custom -> gl3 -> gles3 -> gl1 -> gles1 -> soft.
 			if ((strcmp(vid_renderer->string, "gl3") != 0) &&
+				(strcmp(vid_renderer->string, "gles3") != 0) &&
 				(strcmp(vid_renderer->string, "gl1") != 0) &&
+				(strcmp(vid_renderer->string, "gles1") != 0) &&
 				(strcmp(vid_renderer->string, "soft") != 0))
 			{
 				Com_Printf("Retrying with gl3...\n");
@@ -608,10 +621,20 @@ VID_CheckChanges(void)
 			}
 			else if (strcmp(vid_renderer->string, "gl3") == 0)
 			{
+				Com_Printf("Retrying with gles3...\n");
+				Cvar_Set("vid_renderer", "gles3");
+			}
+			else if (strcmp(vid_renderer->string, "gles3") == 0)
+			{
 				Com_Printf("Retrying with gl1...\n");
 				Cvar_Set("vid_renderer", "gl1");
 			}
 			else if (strcmp(vid_renderer->string, "gl1") == 0)
+			{
+				Com_Printf("Retrying with gles1...\n");
+				Cvar_Set("vid_renderer", "gles1");
+			}
+			else if (strcmp(vid_renderer->string, "gles1") == 0)
 			{
 				Com_Printf("Retrying with soft...\n");
 				Cvar_Set("vid_renderer", "soft");
@@ -653,7 +676,7 @@ VID_Init(void)
 #ifdef __EMSCRIPTEN__
 	vid_renderer = Cvar_Get("vid_renderer", "gles3", CVAR_ARCHIVE);
 #else
-	vid_renderer = Cvar_Get("vid_renderer", "gl1", CVAR_ARCHIVE);
+	vid_renderer = Cvar_Get("vid_renderer", "gl3", CVAR_ARCHIVE);
 #endif
 
 	// Commands
@@ -708,7 +731,7 @@ R_RegisterModel(char *name)
 }
 
 struct image_s*
-R_RegisterSkin(char *name)
+R_RegisterSkin(const char *name)
 {
 	if (ref_active)
 	{
@@ -719,7 +742,7 @@ R_RegisterSkin(char *name)
 }
 
 void
-R_SetSky(char *name, float rotate, vec3_t axis)
+R_SetSky(const char *name, float rotate, vec3_t axis)
 {
 	if (ref_active)
 	{
@@ -746,7 +769,7 @@ R_RenderFrame(refdef_t *fd)
 }
 
 struct image_s*
-Draw_FindPic(char *name)
+Draw_FindPic(const char *name)
 {
 	if (ref_active)
 	{
@@ -758,7 +781,7 @@ Draw_FindPic(char *name)
 
 
 void
-Draw_GetPicSize(int *w, int *h, char *name)
+Draw_GetPicSize(int *w, int *h, const char *name)
 {
 	if (ref_active)
 	{
@@ -767,7 +790,7 @@ Draw_GetPicSize(int *w, int *h, char *name)
 }
 
 void
-Draw_StretchPic(int x, int y, int w, int h, char *name)
+Draw_StretchPic(int x, int y, int w, int h, const char *name)
 {
 	if (ref_active)
 	{
@@ -776,7 +799,7 @@ Draw_StretchPic(int x, int y, int w, int h, char *name)
 }
 
 void
-Draw_PicScaled(int x, int y, char *pic, float factor)
+Draw_PicScaled(int x, int y, const char *pic, float factor)
 {
 	if (ref_active)
 	{
@@ -794,7 +817,7 @@ Draw_CharScaled(int x, int y, int num, float scale)
 }
 
 void
-Draw_TileClear(int x, int y, int w, int h, char *name)
+Draw_TileClear(int x, int y, int w, int h, const char *name)
 {
 	if (ref_active)
 	{

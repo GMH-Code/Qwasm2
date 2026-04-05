@@ -89,14 +89,14 @@ LoadSTB(const char *origname, const char* type, byte **pic, int *width, int *hei
 	data = stbi_load_from_memory(rawdata, rawsize, &w, &h, &bytesPerPixel, STBI_rgb_alpha);
 	if (data == NULL)
 	{
-		R_Printf(PRINT_ALL, "%s couldn't load data from %s: %s!\n", __func__, filename, stbi_failure_reason());
+		Com_Printf("%s couldn't load data from %s: %s!\n", __func__, filename, stbi_failure_reason());
 		ri.FS_FreeFile(rawdata);
 		return false;
 	}
 
 	ri.FS_FreeFile(rawdata);
 
-	R_Printf(PRINT_DEVELOPER, "%s() loaded: %s\n", __func__, filename);
+	Com_DPrintf("%s() loaded: %s\n", __func__, filename);
 
 	*pic = data;
 	*width = w;
@@ -173,7 +173,7 @@ SmoothColorImage(unsigned *dst, size_t size, size_t rstep)
 				// mirror steps
 				if (k < step)
 				{
-					// R_Printf(PRINT_ALL, "%s %d -> %d\n", __func__, k, step);
+					// Com_Printf("%s %d -> %d\n", __func__, k, step);
 					// change place for start effect
 					last_diff += (step - k);
 					step = k;
@@ -509,16 +509,16 @@ R_LoadImage(const char *name, const char* namewe, const char *ext, imagetype_t t
 		{
 			byte *pic = NULL;
 			byte	*palette = NULL;
-			int width = 0, height = 0;
+			int width = 0, height = 0, bitsPerPixel = 8;
 
-			LoadPCX (namewe, &pic, &palette, &width, &height);
+			LoadPCX (namewe, &pic, &palette, &width, &height, &bitsPerPixel);
 			if (!pic)
 				return NULL;
 
 			image = load_image(name, pic,
 				width, width,
 				height, height,
-				width * height, type, 8);
+				width * height, type, bitsPerPixel);
 
 			if (palette)
 			{

@@ -8,16 +8,18 @@ have been renamed. The prefixes are:
 * No prefix: General stuff.
 * `cl_`: Client.
 * `gl_`: Common to all OpenGL renderers.
-* `gl1_`: OpenGL 1.4 renderer.
+* `gl1_`: OpenGL 1.4 and OpenGL ES1 renderers.
 * `gl3_`: OpenGL 3.2 and OpenGL ES3 renderers.
 * `ogg_`: Ogg/Vorbis music playback.
 * `r_`: Common to all renderers.
 * `s_`: Sound system.
+* `sv_`: Server 
 * `sw_`: Software renderer.
 * `vid_`: Video backend.
 
-All cvars may be given at command line through `+set cvar value` or typed
-into the console. The console can be opended with *Left Shift + Esc*.
+All cvars may be given at command line through `+set cvar value` or
+typed into the console. The console can be opended with *Left Shift +
+Esc*.
 
 Keep in mind that some cvars need quotation marks around the arguments.
 When giving such cvars at the command line the argument string must be
@@ -57,6 +59,35 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
   time for the next frame. The latter is more CPU friendly but can be
   rather inaccurate, especially on Windows. Use with care.
 
+* **sv_optimize_sp_loadtime** / **sv_optimize_mp_loadtime**: These cvars
+  enable/disable optimizations that speed up level load times (or more
+  accurately, client connection).  
+  sp stands for singleplayer and mp for multiplayer, respectively.  
+  The sp version is enabled by default (value 7) while multiplayer
+  is 0.  
+  The cvar value is a bitmask for 3 optimization features:
+
+  - **1: Message utilization**: When the server sends the client
+    configstrings and other data during the connection process, the
+    message buffer is only used around 50-60%. When this flag is
+    enabled, the message is used much better, dramatically reducing the
+    amount of messages needed to deliver all the data to the client.
+  - **2: Server send rate**: By default, the server sends messages to
+    clients once every 0.1 seconds, roughly. This slows down sending
+    data to clients, especially in singleplayer. This is normal for
+    active clients, but for connecting/inactive clients, this delay is
+    unnecessary. When this flag is set, the server will send messages to
+    inactive clients ~8x more frequently.
+  - **4: Reconnection**: When the server changes maps, like on level
+    transitions, the server first sends a "changing" command to all
+    clients, and then a "reconnect" command. The delay between these
+    commands can be quite long, ~1 second. This flag will avoid this
+    delay when set, by sending the two commands within the same message.
+
+  Simply add these flag values together to get the cvar value you want.
+  For example, sendrate + reconnect = 2 + 4 = 6.
+  Set to 7 for all optimizations, or 0 to disable them entirely.
+
 * **cl_maxfps**: The approximate framerate for client/server ("packet")
   frames if *cl_async* is `1`. If set to `-1` (the default), the engine
   will choose a packet framerate appropriate for the render framerate.  
@@ -75,8 +106,8 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
   If *cl_async* is set to `1` (the default) the client is asynchronous,
   which means that there can be multiple render frames between client-
   and server-frames. This makes it possible to renderer as many frames
-  as desired without physics and movement problems. 
-  The client framerate is controlled by *cl_maxfps*,
+  as desired without physics and movement problems.  
+  The client framerate is controlled by *cl_maxfps*,  
   the renderer framerate is controlled by *vid_maxfps*.  
   
   As client/server frames ("packet frames") are only run together with
@@ -106,6 +137,9 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
 * **cl_http_max_connections**: Maximum number of parallel downloads. Set
   to `4` by default. A higher number may help with slow servers.
 
+* **cl_http_verifypeer**: SSL certificate validation. Set to `1`
+  by default, set to `0` to disable.
+
 * **cl_http_proxy**: Proxy to use, empty by default.
 
 * **cl_http_show_dw_progress**: Show a HTTP download progress bar.
@@ -114,11 +148,16 @@ it's `+set busywait 0` (setting the `busywait` cvar) and `-portable`
 `cl_http_bw_limit_tmout` variable. Set `0` by default.
 
 * **cl_http_bw_limit_tmout**: Seconds before the download is aborted
-when the speed transfer is below the var set by `cl_http_bw_limit_rate`.
-Set `0` by default.
+  when the speed transfer is below the var set by
+  `cl_http_bw_limit_rate`. Set `0` by default.
 
 * **cl_kickangles**: If set to `0` angle kicks (weapon recoil, damage
   hits and the like) are ignored. Cheat-protected. Defaults to `1`.
+
+* **cl_laseralpha**: Controls how see-through laserbeams are.
+  The value ranges from 0.0 to 1.0, from completely invisible to
+  completely opaque. So higher value means better visibility.
+  Defaults to `0.3`.
 
 * **cl_limitsparksounds**: If set to `1` the number of sound generated
   when shooting into power screen and power shields is limited to 16.
@@ -133,8 +172,22 @@ Set `0` by default.
   loading. If set to `0` pause mode is never entered, this is the
   Vanilla Quake II behaviour.
 
-* **cl_unpaused_scvis**: If set to `1` (the default) the client unpause
-  when the screen becomes visible.
+* **cl_model_preview_start**: Start frame value in multiplayer model
+  preview.  `-1` - don't show animation. Defaults to `84` for show
+  salute animation.
+
+* **cl_model_preview_end**: End frame value in multiplayer model
+  preview.  `-1` - don't show animation. Defaults to `94` for show
+  salute animation.
+
+* **cl_nodownload_list**: Whitespace separated list of substrings, files
+  having one these strings in their name are never downloaded. Empty by
+  default. Note that some substrings are always forbidden, for security
+  reasons these cannot be overridden: '.dll', '.dylib' and '.so' to
+  prevent downloading of libraries which could be injected into the
+  Yamagi Quake II process. '..' or ':' inside filenames and '/' or '.'
+  at the beginning of filenames to prevent downloading files into
+  arbitrary directories.
 
 * **cl_r1q2_lightstyle**: Since the first release Yamagi Quake II used
   the R1Q2 colors for the dynamic lights of rockets. Set to `0` to get
@@ -142,12 +195,14 @@ Set `0` by default.
 
 * **cl_showfps**: Shows the framecounter. Set to `2` for more and to
   `3` for even more informations.
-
-* **cl_model_preview_start**: start frame value in multiplayer model preview.
-  `-1` - don't show animation. Defaults to `84` for show salute animation.
-
-* **cl_model_preview_end**: end frame value in multiplayer model preview.
-  `-1` - don't show animation. Defaults to `94` for show salute animation.
+  
+* **cl_showspeed**:  Shows the players speed. Set to `1` to display both
+  overall speed and (horizontal speed) in Quake Units (QU) respectfully
+  at the top right corner of the screen. Set to `2` to show only the
+  horizontal speed under the crosshair.
+  
+* **cl_unpaused_scvis**: If set to `1` (the default) the client unpause
+  when the screen becomes visible.
 
 * **in_grab**: Defines how the mouse is grabbed by Yamagi Quake IIs
   window. If set to `0` the mouse is never grabbed and if set to `1`
@@ -162,7 +217,7 @@ Set `0` by default.
   both `coop` and `deathmatch` are forced to `0` and `maxclients` is
   forced to `1`. This can be used to run a dedicated server with an old
   single player mod, where the source code isn't available, inside a
-  Windows 98 or XP VM and connect over network from an non Windows
+  Windows 98 or XP VM and connect over network from a non Windows
   system.
 
 * **coop_pickup_weapons**: In coop a weapon can be picked up only once.
@@ -219,8 +274,14 @@ Set `0` by default.
 * **g_machinegun_norecoil**: Disable machine gun recoil in single player. 
   By default this is set to `0`, this keeps the original machine gun 
   recoil in single player. When set to `1` the recoil is disabled in
-  single player, the same way as in multiplayer.
+  single player, the same way as in multiplayer.  
   This cvar only works if the game.dll implements this behaviour.
+
+* **g_quick_weap**: If set to `1`, both *weapprev* and *weapnext*
+  commands will "count" how many times they have been called, making
+  possible to skip weapons by quickly tapping one of these keys.
+  By default this cvar is set to `1`, and will only work if the
+  game.dll implements this behaviour.
 
 * **g_swap_speed**: Sets the speed of the "changing weapon" animation.
   Default is `1`. If set to `2`, it will be double the speed, `3` is
@@ -264,6 +325,15 @@ Set `0` by default.
   0.  Setting this cvar to `1` disables this behavior, the music keeps
   playing.
 
+* **ogg_shuffle**: Ogg/Vorbis playback mode. Supported modes are:
+  - `0`: Loop the current track (the default).
+  - `1`: Play the current track once, then stop.
+  - `2`: Play all available tracks in a linear sequence.
+  - `3`: Shuffle through the available tracks, never play the same track
+         twice in a row.
+  - `4`: Shuffle through the available tracks, may play the same track
+         multiple times in a row.
+
 * **s_doppler**: If set to `1` doppler effects are enabled. This is only
   supported by the OpenAL sound backend.
 
@@ -271,7 +341,12 @@ Set `0` by default.
   default. OpenAL gives a huge quality boost over the classic sound
   system and supports surround speakers and HRTF for headphones. OpenAL
   is much more reliable than the classic sound system, especially on
-  modern systems like Windows 10 or Linux with PulseAudio.
+  modern systems like Windows 10 or Linux with PulseAudio or Pipewire.
+
+* **s_sdldriver**: Can be set to the name of a SDL audio driver. If set
+  to `auto` (the default), SDL chooses the driver. If set to anything
+  else the given driver is forced, regardless if supported by SDL or the
+  platform or not.
 
 * **s_underwater**: Dampen sounds if submerged. Enabled by default.
 
@@ -279,11 +354,30 @@ Set `0` by default.
   are enabled. This is only supported by the OpenAL sound backend. By
   default this cvar is disabled (set to 0).
 
-* **s_reverb_preset**: Enable reverb effect. By default this cvar is disabled
-  (set to `-1`). Possible values:
-  `-2`: Auto reverb effect select,
-  `-1`: Disable reverb effect,
-  `>=0`: select predefined effect.
+* **s_reverb_preset**: Enable reverb effect. By default this cvar is
+  disabled (set to `-1`). Possible values:
+  - `-2`: Auto reverb effect select,
+  - `-1`: Disable reverb effect,
+  - `>=0`: select predefined effect.
+
+* **s_bsp_soundpos**: Controls the positioning of sounds played by BSP
+  entities (doors, elevators, ...). Internally the game treats the
+  positioning of BSP entities differently. There are 3 modes to choose
+  from. Values 0, 1 and 2.
+
+  - **Mode 0: Original behavior**: Sound events play at the center of
+    the bbox, loop sound plays at origin (0, 0, 0). This is how you are
+    used to it functioning from before this cvar was added. This is
+    considered a bug/code oversight, hence why the default value is 1.
+  - **Mode 1: Bbox center**: Both sound events and loop sounds play at
+    bbox center. While this works better than mode 0, very long/large
+    bboxes, like the elevator at the start of jail4, will play the sound
+    too far away for you to hear it.
+  - **Mode 2: Bbox edge**: Sound events and loop sounds play at the edge
+    of the bbox, closest to the player. Now you hear the bbox itself,
+    rather than the point at its center.
+
+  Default mode is 1.
 
 * **cl_audiopaused**: If set to `1` the sounds pause when the game does.
 
@@ -304,7 +398,7 @@ Set `0` by default.
 
 * **r_gunfov**: The weapons are rendered with a custom field of view,
   independently of the global **fov**, so they are not distorted at high
-  FOVs.  A value of `75` should look identical to the old code at `fov
+  FOVs. A value of `75` should look identical to the old code at `fov
   90`, it defaults to `80` because that looks a bit better. Set to `-1`
   for the same value as `fov`.
 
@@ -379,12 +473,14 @@ Set `0` by default.
   has 59.95hz.
 
 * **vid_gamma**: The value used for gamma correction. Higher values look
-  brighter. The OpenGL 1.4 and software renderers use "Hardware Gamma",
-  setting the Gamma of the whole screen to this value in realtime
-  (except on MacOS where it's applied to textures on load and thus needs
-  a `vid_restart` after changing). The OpenGL 3.2 and Vulkan renderers
-  apply this to the window in realtime via shaders (on all platforms).
-  This is also set by the brightness slider in the video menu.
+  brighter. The OpenGL 3.2 OpenGL ES3 and Vulkan renderers apply this to
+  the window in realtime via shaders (on all platforms). When the game
+  is built against SDL2, the OpenGL 1.4 renderer uses "hardware gamma"
+  when available, increasing the brightness of the whole screen. When
+  the game is built using SDL3, the OpenGL 1.4 renderer requires a
+  `vid_restart` since gamma values are precomputed at renderer start
+  only. On MacOS the situation is similar; `vid_restart` is required.
+  This cvar is also set by the brightness slider in the video menu.
 
 * **vid_fullscreen**: Sets the fullscreen mode. When set to `0` (the
   default) the game runs in window mode. When set to `1` the games
@@ -399,10 +495,12 @@ Set `0` by default.
   scaling factor of the underlying display. Example: The displays
   scaling factor is 1.25 and the user requests 1920x1080. The client
   will render at 1920\*1.25x1080\*1.25=2400x1350.  
-  When set to `0` (the default) the client leaves the decision if the
-  window should be scaled to the underlying compositor. Scaling applied
-  by the compositor may introduce blur and sluggishness.  
-  Currently high dpi awareness is only supported under Wayland.
+  When set to `0` the client leaves the decision if the window should
+  be scaled to the underlying compositor. Scaling applied by the
+  compositor may introduce blur and sluggishness.  
+  Currently high dpi awareness is only supported under Wayland.  
+  Defaults to `0` when build against SDL2 and to `1` when build against
+  SDL3.
 
 * **vid_maxfps**: The maximum framerate. *Note* that vsync (`r_vsync`) 
   also restricts the framerate to the monitor refresh rate, so if vsync
@@ -415,9 +513,9 @@ Set `0` by default.
   game can be paused, e.g. not in multiplayer games. Defaults to `0`.
 
 * **vid_renderer**: Selects the renderer library. Possible options are
-  `gl1` (the default) for the old OpenGL 1.4 renderer, `gl3` for the
-  OpenGL 3.2 renderer, `gles3` for the OpenGL ES3 renderer
-  and `soft` for the software renderer.
+  `gl3` (the default) for the OpenGL 3.2 renderer, `gles3` for the
+  OpenGL ES3 renderer, gl1 for the original OpenGL 1.4 renderer and
+  `soft` for the software renderer.
 
 
 ## Graphics (GL renderers only)
@@ -427,35 +525,71 @@ Set `0` by default.
   the overlapping surfaces to mitigate the flickering. This may make
   things better or worse, depending on the map.
 
+* **gl_polyblend**: Toggles the palette blending effect, a.k.a. the
+  "flash" you see when getting injured or picking up an item. In GL1 is
+  also used for looking underwater. Default is `1` (enabled).
+
+* **gl_znear**: Sets the distance to the *near depth clipping plane* of
+  the player view. Reducing it may allow some weapon animations to not
+  get "clipped" by the player view (e.g. railgun firing), at the risk
+  of heavy glitches with some hardware configurations. Default is `4`.
+
 * **gl_texturemode**: How textures are filtered.
+
   - `GL_NEAREST`: No filtering (using value of *nearest* source pixel),
     mipmaps not used
   - `GL_LINEAR`: Bilinear filtering, mipmaps not used
   - `GL_LINEAR_MIPMAP_NEAREST`: The default - Bilinear filtering when
-    scaling up, using mipmaps with nearest/no filtering when scaling down
-  
+    scaling up, using mipmaps with nearest/no filtering when scaling
+    down
+
   Other supported values: `GL_NEAREST_MIPMAP_NEAREST`,
   `GL_NEAREST_MIPMAP_LINEAR`, `GL_LINEAR_MIPMAP_LINEAR`
 
 
-## Graphics (OpenGL 1.4 only)
+## Graphics (OpenGL 1.4 and OpenGL ES1 only)
 
 * **gl1_intensity**: Sets the color intensity. Must be a floating point
   value, at least `1.0` - default is `2.0`. Applied when textures are
   loaded, so it needs a `vid_restart`.
 
+* **gl1_minlight**: Sets the minimum light level on screen. Increasing
+  this illuminates darker scenes, at the expense of the atmosphere.
+  Posible values go from `0` (default, show the full spectrum of light
+  & dark) to `255` (equal to `r_fullbright 1`). Requires `vid_restart`.
+
+* **gl1_multitexture**: Enables (`1`, default) the blending of color and
+  light textures on a single drawing pass; disabling this (`0`) does one
+  pass for color and another for light. Requires a `vid_restart` when
+  changed.
+
 * **gl1_overbrightbits**: Enables overbright bits, brightness scaling of
   lightmaps and models. Higher values make shadows less dark. Possible
   values are `0` (no overbright bits), `1` (more correct lighting for
-  water), `2` (scale by factor 2), `3` (scale lighting by 3 only for the
-  dynamic meshes, like enemies and items), and `4` (scale lighting of
-  everything by 4). Applied in realtime, does not need `vid_restart`.
+  liquids), `2` (scale lighting by factor 2), and `4` (scale by factor
+  4). Applied in realtime, does not need `vid_restart`.
 
 * **gl1_particle_square**: If set to `1` particles are rendered as
   squares.
 
 * **gl1_stencilshadow**: If `gl_shadows` is set to `1`, this makes them
-  look a bit better (no flickering) by using the stencil buffer.
+  look a bit better (no flickering) by using the stencil buffer. Does
+  not work when `gl1_stereo` is `3`, `4` or `5`.
+
+* **gl1_waterwarp**: Intensity of the "squeeze/stretch" effect on the
+  FOV when diving underwater. Can be any floating point number, `0`
+  disables it (Vanilla Quake II look). Default `1.0`.
+
+* **gl1_lightmapcopies**: When enabled (`1`), keep 3 copies of the same
+  lightmap rotating, shifting to another one when drawing a new frame.
+  Meant for mobile/embedded devices, where changing textures just shown
+  (dynamic lighting) causes slowdown. By default in GL1 is disabled,
+  while in GLES1 is enabled. Needs `gl1_multitexture 1` & `vid_restart`.
+
+* **gl1_discardfb**: If `1`, clear color, depth and stencil buffers at
+  the start of a frame, and discard them at the end if possible. If
+  `2`, do only depth and stencil, no color. Increases performance in
+  mobile / embedded. Default in GL1 is `0`, while in GLES1 is `1`.
 
 
 ## Graphics (OpenGL 3.2 and OpenGL ES3 only)
@@ -477,7 +611,7 @@ Set `0` by default.
 * **gl3_overbrightbits**: Enables overbright bits, brightness scaling of
   lightmaps and models. Higher values make shadows less dark. Similar
   to OpenGL 1.4 `gl1_overbrightbits`, but allows any floating point
-  number.  Default is `1.3`. In the OpenGL 3.2 renderer, no lighting
+  number. Default is `1.3`. In the OpenGL 3.2 renderer, no lighting
   fixes for water are needed, so `1.0` has no special meaning.
 
 * **gl3_particle_size**: The size of particles - Default is `40`.
@@ -509,27 +643,58 @@ Set `0` by default.
 * **sw_colorlight**: enable experimental color lighting.
 
 
-## Game Controller
+## Gamepad
 
 * **in_initjoy**: Toggles initialization of game controller. Default is
   `1`, which enables gamepad usage; `0` disables its detection at
   startup. Can only be set from command line.
 
-* **in_sdlbackbutton**: Defines which button is used in the gamepad or
-  joystick as the `Esc` key, to access the main menu and 'cancel' /
-  'go back' on its options. Default is `0`, which corresponds to the
-  Back/Select/Minus button. Set to `1` to use Start/Menu/Plus, and to
-  `2` to use the Guide/Home/PS button. Requires a game restart
-  (or controller replug) when changed.
+* **joy_escbutton**: Defines which button is used in the gamepad as
+  the `Esc` key, to pull the main menu and 'cancel' / 'go back' on its
+  options. Valid values are `0` = Start / Menu / Plus (default), `1` =
+  Back / Select / Minus, or `2` = Guide / Home / PS. Requires a game
+  restart, or gamepad replug, when changed.
+
+* **joy_labels**: Defines style of button labels in binding menus. Note
+  that binding through console only uses the SDL nomenclature (`0`).
+  Default is `-1`, which requires at least SDL 2.0.12 to work.
+  - `-1`: *Autodetect*, sets to `0` if gamepad type isn't detected
+  - `0`: *SDL*, face buttons appear as cardinal points
+  - `1`: *Xbox*, with One / Series X / S labels
+  - `2`: *Playstation*, 4 & 5 format
+  - `3`: *Switch*, traditional Nintendo button format
+
+* **joy_confirm**: Style of *confirm* and *cancel* buttons in menus. As
+  with the previous one, SDL 2.0.12 is required for `-1` to work.
+  - `-1`: *Autodetect*, sets to `1` if Nintendo gamepad, `0` otherwise
+  - `0`: *Standard style*: SOUTH to confirm, EAST to cancel
+  - `1`: *Japanese style*: EAST to confirm, SOUTH to cancel
+
+* **joy_sensitivity**: Simple sensitivity adjustment for yaw and pitch.
+  Changing this applies a preset that adjusts the advanced cvars listed
+  below. Default `3`.
+
+* **joy_advanced**: Show or hide the following advanced sensitivity
+  cvars in the menu:
+  - **joy_yawspeed**: How quickly the view turns left or right in
+    degrees per second. Default `160`.
+  - **joy_pitchspeed**: How quickly the view looks up or down in
+    degrees per second. Default `120`.
+  - **joy_extra_yawspeed**: Additional yaw speed that is applied when
+    the stick is fully deflected. Default `220`.
+  - **joy_extra_pitchspeed**: Additional pitch speed that is applied
+    when the stick is fully deflected. Default `0`.
+  - **joy_ramp_time**: Ramp-up time required for any extra yaw or pitch
+    speed to be fully applied. Default `0.35` (350 milliseconds).
 
 * **joy_layout**: Allows to select the stick layout of the gamepad.
   - `0`: *Default*, left stick moves, right aims
-  - `1`: *Southpaw*, same as previous one with inverted sticks
+  - `1`: *Southpaw*, left stick aims, right moves
   - `2`: *Legacy*, left moves forward/backward and turns, right strafes
-    and looks up/down
-  - `3`: *Legacy Southpaw*, inverted sticks version of previous one
+         and looks up/down
+  - `3`: *Legacy Southpaw*, swapped sticks version of previous one
   - `4`: *Flick Stick*, left stick moves, right checks your surroundings
-    in 360º, gyro required for looking up/down
+         in 360º, gyro required for looking up/down
   - `5`: *Flick Stick Southpaw*, swapped sticks version of last one
 
 * **joy_left_deadzone** / **joy_right_deadzone**: Inner, circular
@@ -549,6 +714,15 @@ Set `0` by default.
   represent much smaller inputs, which helps precision with the sticks.
   `1.0` is linear. Default `2.0` (quadratic curve).
 
+* **joy_outer_threshold**: Defines the outer boundary where stick input
+  is considered to be at maximum. A small amount may be needed for some
+  controllers. Additionally, this cvar defines the boundary where any
+  extra yaw or pitch speed is applied. Default `0.02`(outer 2% of stick
+  range).
+
+* **joy_trigger**: Trigger pressure required to register it as a
+  button press. Default `0.2` (20% of total trigger displacement).
+
 * **joy_flick_threshold**: Used only with Flick Stick, specifies the
   distance from the center of the stick that will make the player flick
   or rotate. Default `0.65` (65%).
@@ -563,13 +737,44 @@ Set `0` by default.
   `+gyroaction` bind to enable, `2` = on with `+gyroaction` to
   disable (default), `3` = always on.
 
-* **gyro_turning_axis**: Sets which gyro axis will be used for turning.
-  The default `0` is "yaw" (turn), for people who prefer to hold their
-  controller flat, like using a pointing device. `1` is "roll" (lean),
-  for people who hold the controller upright, or use a device with the
-  controller attached to the screen, e.g. Steam Deck.
+* **gyro_space**: How motion input is converted into yaw and pitch
+  rotations. `0` = local space, `1` = player space (default),
+  `2` = world space.
 
-* **gyro_calibration_(x/y/z)**: Offset values on each axis of the gyro
+* **gyro_local_roll**: How gyro roll contributes to turning when using
+  local space. `0` = off, `1` = on (default), `2` = inverted.
+
+* **gyro_yawsensitivity**: How quickly the view turns left or right. A
+  value of 1.0 means one full rotation of the controller rotates the
+  in-game view by 360 degrees. Default `2.5`.
+
+* **gyro_pitchsensitivity**: How quickly the view looks up or down.
+  Default `2.5`.
+
+* **gyro_tightening**: Threshold of rotation, in degrees per second,
+  below which gyro input is reduced to stabilize aiming. Default `3.5`.
+
+* **gyro_smoothing**: Threshold of rotation, in degrees per second,
+  below which gyro input is averaged to reduce jitter. Default `2.5`.
+
+* **gyro_smoothing_window**: The smoothing window size, in seconds.
+  Default `0.125`.
+
+* **gyro_acceleration**: Toggles the use of gyro acceleration.
+  `0` = off (default), `1` = on.
+
+* **gyro_accel_multiplier**: Multiplier that increases gyro sensitivity
+  when rotating the controller quickly. Applied linearly, ramping up
+  from the lower to upper threshold. Default `2.0`.
+
+* **gyro_accel_lower_thresh**: The lower input threshold, in degrees per
+  second, from which acceleration starts ramping up towards the upper
+  threshold. Default `0`.
+
+* **gyro_accel_upper_thresh**: The upper input threshold, in degrees per
+  second, at which full acceleration is applied. Default `75`.
+
+* **gyro_calibration_(a/x/y/z)**: Offset values on each axis of the gyro
   which helps it reach true "zero movement", complete stillness. These
   values are wrong if you see your in-game view "drift" when leaving
   the controller alone. As these vary by device, it's better to use
@@ -578,19 +783,19 @@ Set `0` by default.
 * **joy_haptic_magnitude**: Haptic magnitude value, By default this cvar
   is `0.0` or disabled. Valid values are positive, e.g. 0..2.0.
 
-* **joy_haptic_filter**: List of sound file names produced haptic feedback
-  separated by space. `*` could be used for replace part of file name as
-  regular expression. `!` at the beginning of value could be used for skip
-  file name equal to value.
+* **joy_haptic_filter**: List of sound file names produced haptic
+  feedback separated by space. `*` could be used for replace part of
+  file name as regular expression. `!` at the beginning of value could
+  be used for skip file name equal to value.
 
-* **joy_haptic_distance**: Haptic maximum effect distance value, By default
-  this cvar is `100.0`. Any positive value is valid. E.g. effect of shoot
-  to a barrel has 58 points when player stay near the barrel.
+* **joy_haptic_distance**: Haptic maximum effect distance value, By
+  default this cvar is `100.0`. Any positive value is valid. E.g. effect
+  of shoot to a barrel has 58 points when player stay near the barrel.
 
-* **s_feedback_kind**: Select kind of controller feedback to use. By default
-  this cvar is `0`. Possible values:
-  `0`: Rumble feedback,
-  `1`: Haptic feedback.
+* **s_feedback_kind**: Select kind of controller feedback to use. By
+  default this cvar is `0`. Possible values:
+  - `0`: Rumble feedback,
+  - `1`: Haptic feedback.
 
 
 ## cvar operations

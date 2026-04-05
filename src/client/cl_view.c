@@ -46,21 +46,19 @@ cvar_t *crosshair_3d_glow_b;
 
 cvar_t *cl_stats;
 
-int r_numdlights;
-dlight_t r_dlights[MAX_DLIGHTS];
+static int r_numdlights;
+static dlight_t r_dlights[MAX_DLIGHTS];
 
-int r_numentities;
-entity_t r_entities[MAX_ENTITIES];
+static int r_numentities;
+static entity_t r_entities[MAX_ENTITIES];
 
-int r_numparticles;
-particle_t r_particles[MAX_PARTICLES];
+static int r_numparticles;
+static particle_t r_particles[MAX_PARTICLES];
 
-lightstyle_t r_lightstyles[MAX_LIGHTSTYLES];
+static lightstyle_t r_lightstyles[MAX_LIGHTSTYLES];
 
 char cl_weaponmodels[MAX_CLIENTWEAPONMODELS][MAX_QPATH];
 int num_cl_weaponmodels;
-
-void V_Render3dCrosshair(void);
 
 /*
  * Specifies the model that will be used as the world
@@ -139,7 +137,7 @@ V_AddLightStyle(int style, float r, float g, float b)
 /*
  *If cl_testparticles is set, create 4096 particles in the view
  */
-void
+static void
 V_TestParticles(void)
 {
 	particle_t *p;
@@ -169,7 +167,7 @@ V_TestParticles(void)
 /*
  * If cl_testentities is set, create 32 player models
  */
-void
+static void
 V_TestEntities(void)
 {
 	int i, j;
@@ -200,18 +198,20 @@ V_TestEntities(void)
 /*
  * If cl_testlights is set, create 32 lights models
  */
-void
+static void
 V_TestLights(void)
 {
-	int i, j;
-	float f, r;
-	dlight_t *dl;
+	int i;
 
 	r_numdlights = 32;
 	memset(r_dlights, 0, sizeof(r_dlights));
 
 	for (i = 0; i < r_numdlights; i++)
 	{
+		dlight_t *dl;
+		float f, r;
+		int j;
+
 		dl = &r_dlights[i];
 
 		r = 64 * ((i % 4) - 1.5f);
@@ -238,7 +238,7 @@ CL_PrepRefresh(void)
 {
 	char mapname[MAX_QPATH];
 	int i;
-	char name[MAX_QPATH];
+	char *name;
 	float rotate;
 	vec3_t axis;
 
@@ -251,40 +251,32 @@ CL_PrepRefresh(void)
 	SCR_AddDirtyPoint(viddef.width - 1, viddef.height - 1);
 
 	/* let the refresher load the map */
-	strcpy(mapname, cl.configstrings[CS_MODELS + 1] + 5); /* skip "maps/" */
+	Q_strlcpy(mapname, cl.configstrings[CS_MODELS + 1] + 5, sizeof(mapname)); /* skip "maps/" */
 	mapname[strlen(mapname) - 4] = 0; /* cut off ".bsp" */
 
 	/* register models, pics, and skins */
 	Com_Printf("Map: %s\r", mapname);
 	SCR_UpdateScreen();
 	R_BeginRegistration (mapname);
-	Com_Printf("                                     \r");
 
 	/* precache status bar pics */
 	Com_Printf("pics\r");
 	SCR_UpdateScreen();
 	SCR_TouchPics();
-	Com_Printf("                                     \r");
 
 	CL_RegisterTEntModels();
 
 	num_cl_weaponmodels = 1;
 	strcpy(cl_weaponmodels[0], "weapon.md2");
 
+	Com_Printf("models\r");
+	SCR_UpdateScreen();
+
 	for (i = 1; i < MAX_MODELS && cl.configstrings[CS_MODELS + i][0]; i++)
 	{
-		strcpy(name, cl.configstrings[CS_MODELS + i]);
-		name[37] = 0; /* never go beyond one line */
+		name = cl.configstrings[CS_MODELS + i];
 
-		if (name[0] != '*')
-		{
-			Com_Printf("%s\r", name);
-		}
-
-		SCR_UpdateScreen();
-		IN_Update();
-
-		if (name[0] == '#')
+		if (*name == '#')
 		{
 			/* special player weapon model */
 			if (num_cl_weaponmodels < MAX_CLIENTWEAPONMODELS)
@@ -292,6 +284,7 @@ CL_PrepRefresh(void)
 				Q_strlcpy(cl_weaponmodels[num_cl_weaponmodels],
 						cl.configstrings[CS_MODELS + i] + 1,
 						sizeof(cl_weaponmodels[num_cl_weaponmodels]));
+
 				num_cl_weaponmodels++;
 			}
 		}
@@ -299,20 +292,9 @@ CL_PrepRefresh(void)
 		{
 			cl.model_draw[i] = R_RegisterModel(cl.configstrings[CS_MODELS + i]);
 
-			if (name[0] == '*')
-			{
-				cl.model_clip[i] = CM_InlineModel(cl.configstrings[CS_MODELS + i]);
-			}
-
-			else
-			{
-				cl.model_clip[i] = NULL;
-			}
-		}
-
-		if (name[0] != '*')
-		{
-			Com_Printf("                                     \r");
+			cl.model_clip[i] = (*name == '*') ?
+				CM_InlineModel(name) :
+				NULL;
 		}
 	}
 
@@ -322,23 +304,17 @@ CL_PrepRefresh(void)
 	for (i = 1; i < MAX_IMAGES && cl.configstrings[CS_IMAGES + i][0]; i++)
 	{
 		cl.image_precache[i] = Draw_FindPic(cl.configstrings[CS_IMAGES + i]);
-		IN_Update();
 	}
 
-	Com_Printf("                                     \r");
+	Com_Printf("clients\r");
+	SCR_UpdateScreen();
 
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
-		if (!cl.configstrings[CS_PLAYERSKINS + i][0])
+		if (cl.configstrings[CS_PLAYERSKINS + i][0])
 		{
-			continue;
+			CL_ParseClientinfo(i);
 		}
-
-		Com_Printf("client %i\r", i);
-		SCR_UpdateScreen();
-		IN_Update();
-		CL_ParseClientinfo(i);
-		Com_Printf("                                     \r");
 	}
 
 	CL_LoadClientinfo(&cl.baseclientinfo, "unnamed\\male/grunt");
@@ -349,6 +325,7 @@ CL_PrepRefresh(void)
 	rotate = (float)strtod(cl.configstrings[CS_SKYROTATE], (char **)NULL);
 	sscanf(cl.configstrings[CS_SKYAXIS], "%f %f %f", &axis[0], &axis[1], &axis[2]);
 	R_SetSky(cl.configstrings[CS_SKY], rotate, axis);
+
 	Com_Printf("                                     \r");
 
 	/* the renderer can now free unneeded stuff */
@@ -362,9 +339,7 @@ CL_PrepRefresh(void)
 	cl.force_refdef = true; /* make sure we have a valid refdef */
 
 	/* start the cd track */
-	int track = (int)strtol(cl.configstrings[CS_CDTRACK], (char **)NULL, 10);
-
-	OGG_PlayTrack(track, true, true);
+	OGG_PlayTrack(cl.configstrings[CS_CDTRACK], true, true);
 }
 
 float
@@ -388,14 +363,14 @@ CalcFov(float fov_x, float width, float height)
 }
 
 /* gun frame debugging functions */
-void
+static void
 V_Gun_Next_f(void)
 {
 	gun_frame++;
 	Com_Printf("frame %i\n", gun_frame);
 }
 
-void
+static void
 V_Gun_Prev_f(void)
 {
 	gun_frame--;
@@ -408,7 +383,7 @@ V_Gun_Prev_f(void)
 	Com_Printf("frame %i\n", gun_frame);
 }
 
-void
+static void
 V_Gun_Model_f(void)
 {
 	char name[MAX_QPATH];
@@ -423,7 +398,7 @@ V_Gun_Model_f(void)
 	gun_model = R_RegisterModel(name);
 }
 
-int
+static int
 entitycmpfnc(const entity_t *a, const entity_t *b)
 {
 	/* all other models are sorted by model then skin */
@@ -435,6 +410,52 @@ entitycmpfnc(const entity_t *a, const entity_t *b)
 	else
 	{
 		return (a->model > b->model) ? 1 : -1;
+	}
+}
+
+static void
+V_Render3dCrosshair(void)
+{
+	trace_t crosshair_trace;
+	vec3_t end;
+
+	crosshair_3d = Cvar_Get("crosshair_3d", "0", CVAR_ARCHIVE);
+	crosshair_3d_glow = Cvar_Get("crosshair_3d_glow", "0", CVAR_ARCHIVE);
+
+
+	if(crosshair_3d->value || crosshair_3d_glow->value){
+		VectorMA(cl.refdef.vieworg, 8192, cl.v_forward,end);
+		crosshair_trace = CL_PMTrace(cl.refdef.vieworg, vec3_origin, vec3_origin, end);
+
+		if(crosshair_3d_glow->value){
+			crosshair_3d_glow_r = Cvar_Get("crosshair_3d_glow_r", "5", CVAR_ARCHIVE);
+			crosshair_3d_glow_g = Cvar_Get("crosshair_3d_glow_g", "1", CVAR_ARCHIVE);
+			crosshair_3d_glow_b = Cvar_Get("crosshair_3d_glow_b", "4", CVAR_ARCHIVE);
+
+			V_AddLight(
+				crosshair_trace.endpos,
+				crosshair_3d_glow->value,
+				crosshair_3d_glow_r->value,
+				crosshair_3d_glow_g->value,
+				crosshair_3d_glow_b->value
+			);
+		}
+
+		if(crosshair_3d->value){
+			entity_t crosshair_ent = {0};
+
+			crosshair_ent.origin[0] = crosshair_trace.endpos[0];
+			crosshair_ent.origin[1] = crosshair_trace.endpos[1];
+			crosshair_ent.origin[2] = crosshair_trace.endpos[2];
+
+			crosshair_ent.model = R_RegisterModel("models/crosshair/tris.md2");
+			//crosshair_ent.skin = R_RegisterSkin("models/crosshair/skin.pcx");
+
+			AngleVectors2(crosshair_trace.plane.normal, crosshair_ent.angles);
+			crosshair_ent.flags = RF_DEPTHHACK | RF_FULLBRIGHT | RF_NOSHADOW;
+
+			V_AddEntity(&crosshair_ent);
+		}
 	}
 }
 
@@ -600,53 +621,7 @@ V_RenderView(float stereo_separation)
 	SCR_DrawCrosshair();
 }
 
-void
-V_Render3dCrosshair(void)
-{
-	trace_t crosshair_trace;
-	vec3_t end;
-
-	crosshair_3d = Cvar_Get("crosshair_3d", "0", CVAR_ARCHIVE);
-	crosshair_3d_glow = Cvar_Get("crosshair_3d_glow", "0", CVAR_ARCHIVE);
-
-
-	if(crosshair_3d->value || crosshair_3d_glow->value){
-		VectorMA(cl.refdef.vieworg,8192,cl.v_forward,end);
-		crosshair_trace = CL_PMTrace(cl.refdef.vieworg, vec3_origin, vec3_origin, end);
-
-		if(crosshair_3d_glow->value){
-			crosshair_3d_glow_r = Cvar_Get("crosshair_3d_glow_r", "5", CVAR_ARCHIVE);
-			crosshair_3d_glow_g = Cvar_Get("crosshair_3d_glow_g", "1", CVAR_ARCHIVE);
-			crosshair_3d_glow_b = Cvar_Get("crosshair_3d_glow_b", "4", CVAR_ARCHIVE);
-
-			V_AddLight(
-				crosshair_trace.endpos,
-				crosshair_3d_glow->value,
-				crosshair_3d_glow_r->value,
-				crosshair_3d_glow_g->value,
-				crosshair_3d_glow_b->value
-			);
-		}
-
-		if(crosshair_3d->value){
-			entity_t crosshair_ent = {0};
-
-			crosshair_ent.origin[0] = crosshair_trace.endpos[0];
-			crosshair_ent.origin[1] = crosshair_trace.endpos[1];
-			crosshair_ent.origin[2] = crosshair_trace.endpos[2];
-
-			crosshair_ent.model = R_RegisterModel("models/crosshair/tris.md2");
-			//crosshair_ent.skin = R_RegisterSkin("models/crosshair/skin.pcx");
-
-			AngleVectors2(crosshair_trace.plane.normal, crosshair_ent.angles);
-			crosshair_ent.flags = RF_DEPTHHACK | RF_FULLBRIGHT | RF_NOSHADOW;
-
-			V_AddEntity(&crosshair_ent);
-		}
-	}
-}
-
-void
+static void
 V_Viewpos_f(void)
 {
 	Com_Printf("position: %i %i %i, angles: %i %i %i\n",

@@ -264,7 +264,7 @@ system. The gamedata is searched at:
 - In *$HOME/.yq2*
 
 If you're a package maintainer, please look at our packaging guide at
-the [Packaging Guide](05_packaging.md).
+the [Packaging Guide](070_packaging.md).
 
 
 ## Compiling from source
@@ -321,6 +321,10 @@ or *gmake* (FreeBSD, NetBSD, OpenBSD). Note on Solaris systems, *make*
  or *gmake* can be used, the latter provides in addition parallel build.
 After the build finished, copy everything from the *release/* directory
 to the Yamagi Quake II installation directory.
+
+If you want to generate the OpenGL ES 1.0 renderer, which may be the only
+graphics API available on some SoCs (like Raspberry Pi 3 or older), type
+*make with_gles1*.
 
 For the addons download or clone their source, change into the source
 directory and type *make* (Linux, MacOS and Windows) or *gmake*

@@ -296,7 +296,6 @@ extern	cvar_t	*cl_showclamp;
 extern	cvar_t	*lookstrafe;
 extern	cvar_t	*joy_layout;
 extern	cvar_t	*gyro_mode;
-extern	cvar_t	*gyro_turning_axis;
 extern	cvar_t	*m_pitch;
 extern	cvar_t	*m_yaw;
 extern	cvar_t	*m_forward;
@@ -316,6 +315,8 @@ extern  cvar_t  *vid_renderer;
 extern	cvar_t	*cl_kickangles;
 extern  cvar_t  *cl_r1q2_lightstyle;
 extern  cvar_t  *cl_limitsparksounds;
+extern	cvar_t	*cl_laseralpha;
+extern	cvar_t	*cl_nodownload_list;
 
 typedef struct
 {
@@ -338,11 +339,11 @@ extern	sizebuf_t	net_message;
 
 extern qboolean paused_at_load;
 
-void DrawString (int x, int y, char *s);
-void DrawStringScaled(int x, int y, char *s, float factor);
-void DrawAltString (int x, int y, char *s);	/* toggle high bit */
-void DrawAltStringScaled(int x, int y, char *s, float factor);
-qboolean	CL_CheckOrDownloadFile (char *filename);
+void DrawString (int x, int y, const char *s);
+void DrawStringScaled(int x, int y, const char *s, float factor);
+void DrawAltString (int x, int y, const char *s);	/* toggle high bit */
+void DrawAltStringScaled(int x, int y, const char *s, float factor);
+qboolean	CL_CheckOrDownloadFile (const char *filename);
 
 void CL_AddNetgraph (void);
 
@@ -388,6 +389,7 @@ typedef struct particle_s
 
 void CL_ClearEffects (void);
 void CL_ClearTEnts (void);
+void CL_ClearTEntModels (void);
 void CL_BlasterTrail (vec3_t start, vec3_t end);
 void CL_QuadTrail (vec3_t start, vec3_t end);
 void CL_RailTrail (vec3_t start, vec3_t end);
@@ -419,12 +421,7 @@ void CL_Widowbeamout (cl_sustain_t *self);
 void CL_Nukeblast (cl_sustain_t *self);
 void CL_WidowSplash (vec3_t org);
 
-int CL_ParseEntityBits (unsigned *bits);
-void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int bits);
-void CL_ParseFrame (void);
-
 void CL_ParseTEnt (void);
-void CL_ParseConfigString (void);
 void CL_AddMuzzleFlash (void);
 void CL_AddMuzzleFlash2 (void);
 void SmokeAndFlash(vec3_t origin);
@@ -440,6 +437,8 @@ void CL_AddEntities (void);
 void CL_AddDLights (void);
 void CL_AddTEnts (void);
 void CL_AddLightStyles (void);
+struct sfx_s *CL_RandomFootstepSfx (void);
+struct model_s *CL_PowerScreenModel (void);
 
 void CL_PrepRefresh (void);
 void CL_RegisterSounds (void);
@@ -489,18 +488,25 @@ void CL_BaseMove (usercmd_t *cmd);
 
 void IN_CenterView (void);
 
+typedef enum
+{
+	LBL_SDL = 0,
+	LBL_XBOX,
+	LBL_PLAYSTATION,
+	LBL_SWITCH,
+	LBL_MAX_COUNT
+} gamepad_labels_t;
+
 float CL_KeyState (kbutton_t *key);
 char *Key_KeynumToString (int keynum);
+char *Key_KeynumToString_Joy (int key);
 
+int CL_MaxClients(void);
 void CL_WriteDemoMessage (void);
 void CL_Stop_f (void);
-void CL_Record_f (void);
-
-extern	char *svc_strings[256];
 
 void CL_ParseServerMessage (void);
 void CL_LoadClientinfo (clientinfo_t *ci, char *s);
-void SHOWNET(char *s);
 void CL_ParseClientinfo (int player);
 void CL_Download_f (void);
 

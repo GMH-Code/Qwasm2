@@ -19,7 +19,7 @@
  *
  * =======================================================================
  *
- * Allocate all the little status bar obejcts into a single texture
+ * Allocate all the little status bar objects into a single texture
  * to crutch up inefficient hardware / drivers.
  *
  * =======================================================================
@@ -27,10 +27,9 @@
 
 #include "header/local.h"
 
-int scrap_allocated[MAX_SCRAPS][BLOCK_WIDTH];
-byte scrap_texels[MAX_SCRAPS][BLOCK_WIDTH * BLOCK_HEIGHT];
+static int scrap_allocated[MAX_SCRAPS][SCRAP_WIDTH];
+byte scrap_texels[MAX_SCRAPS][SCRAP_WIDTH * SCRAP_HEIGHT];
 qboolean scrap_dirty;
-int scrap_uploads;
 
 qboolean R_Upload8(byte *data,
 		int width,
@@ -45,12 +44,14 @@ Scrap_AllocBlock(int w, int h, int *x, int *y)
 	int i, j;
 	int best, best2;
 	int texnum;
+	w += 2;	// add an empty border to all sides
+	h += 2;
 
 	for (texnum = 0; texnum < MAX_SCRAPS; texnum++)
 	{
-		best = BLOCK_HEIGHT;
+		best = SCRAP_HEIGHT;
 
-		for (i = 0; i < BLOCK_WIDTH - w; i++)
+		for (i = 0; i < SCRAP_WIDTH - w; i++)
 		{
 			best2 = 0;
 
@@ -74,7 +75,7 @@ Scrap_AllocBlock(int w, int h, int *x, int *y)
 			}
 		}
 
-		if (best + h > BLOCK_HEIGHT)
+		if (best + h > SCRAP_HEIGHT)
 		{
 			continue;
 		}
@@ -83,6 +84,8 @@ Scrap_AllocBlock(int w, int h, int *x, int *y)
 		{
 			scrap_allocated[texnum][*x + i] = best + h;
 		}
+		(*x)++;	// jump the border
+		(*y)++;
 
 		return texnum;
 	}
@@ -93,9 +96,15 @@ Scrap_AllocBlock(int w, int h, int *x, int *y)
 void
 Scrap_Upload(void)
 {
-	scrap_uploads++;
 	R_Bind(TEXNUM_SCRAPS);
-	R_Upload8(scrap_texels[0], BLOCK_WIDTH, BLOCK_HEIGHT, false, false);
+	R_Upload8(scrap_texels[0], SCRAP_WIDTH, SCRAP_HEIGHT, false, false);
 	scrap_dirty = false;
+}
+
+void
+Scrap_Init(void)
+{
+	memset (scrap_allocated, 0, sizeof(scrap_allocated));	// empty
+	memset (scrap_texels, 255, sizeof(scrap_texels));	// transparent
 }
 

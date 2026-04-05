@@ -29,7 +29,7 @@
 
 #include "../../common/header/shared.h"
 
-#if defined(__linux) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__sun)
+#if defined(__linux) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__sun) || defined(__APPLE__)
 #include <unistd.h> // readlink(), amongst others
 #endif
 
@@ -39,6 +39,7 @@
 
 #ifdef _WIN32
 #include <windows.h> // GetModuleFileNameA()
+#include <wchar.h> // _wgetcwd()
 #endif
 
 #ifdef __APPLE__
@@ -148,6 +149,36 @@ static void SetExecutablePath(char* exePath)
 #endif
 }
 
+static qboolean
+Sys_GetCwd(char *buf, size_t size)
+{
+#ifdef __EMSCRIPTEN__
+	return false;
+#else
+#ifdef _WIN32
+	WCHAR wpath[PATH_MAX];
+	DWORD len;
+
+	if (_wgetcwd(wpath, PATH_MAX) == NULL)
+	{
+		return false;
+	}
+	len = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, buf, size, NULL, NULL);
+	if (len <= 0 || len == size)
+	{
+		return false;
+	}
+#else
+	if (getcwd(buf, size) == NULL)
+	{
+		return false;
+	}
+#endif
+	return Q_strlcat(buf, "/", size) == 1;
+#endif // __EMSCRIPTEN__
+}
+
+
 const char *Sys_GetBinaryDir(void)
 {
 	static char exeDir[PATH_MAX] = {0};
@@ -159,10 +190,13 @@ const char *Sys_GetBinaryDir(void)
 	SetExecutablePath(exeDir);
 
 	if (exeDir[0] == '\0') {
+		if (Sys_GetCwd(exeDir, sizeof(exeDir)) == false)
+		{
+			Q_strlcpy(exeDir, "./", sizeof(exeDir));
+		}
 #ifndef __EMSCRIPTEN__
-		Com_Printf("Couldn't determine executable path. Using ./ instead.\n");
+		Com_Printf("Couldn't determine executable path. Using %s instead.\n", exeDir);
 #endif // !__EMSCRIPTEN__
-		Q_strlcpy(exeDir, "./", sizeof(exeDir));
 	} else {
 		// cut off executable name
 		char *lastSlash = strrchr(exeDir, '/');

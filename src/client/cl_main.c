@@ -38,6 +38,7 @@ void CL_Changing_f(void);
 void CL_Reconnect_f(void);
 void CL_Connect_f(void);
 void CL_Rcon_f(void);
+void CL_Packet_f(void);
 void CL_CheckForResend(void);
 
 cvar_t *rcon_client_password;
@@ -48,12 +49,15 @@ cvar_t *cl_footsteps;
 cvar_t *cl_timeout;
 cvar_t *cl_predict;
 cvar_t *cl_showfps;
+cvar_t *cl_showspeed;
 cvar_t *cl_gun;
 cvar_t *cl_add_particles;
 cvar_t *cl_add_lights;
 cvar_t *cl_add_entities;
 cvar_t *cl_add_blend;
 cvar_t *cl_kickangles;
+cvar_t *cl_laseralpha;
+cvar_t *cl_nodownload_list;
 
 cvar_t *cl_shownet;
 cvar_t *cl_showmiss;
@@ -113,6 +117,25 @@ static char rec_demo_path[MAX_OSPATH];
 #endif
 
 /*
+ * Returns max clients in the current session
+ * Returns 1 if the value is bad (<= 0) or the configstring is blank
+ */
+int
+CL_MaxClients(void)
+{
+	int i = 0;
+
+	sscanf(cl.configstrings[CS_MAXCLIENTS], " %i ", &i);
+
+	if (i > MAX_CLIENTS)
+	{
+		return MAX_CLIENTS;
+	}
+
+	return i <= 0 ? 1 : i;
+}
+
+/*
  * Dumps the current net message, prefixed by the length
  */
 void
@@ -158,7 +181,7 @@ CL_Stop_f(void)
  * record <demoname>
  * Begins recording a demo from the current position
  */
-void
+static void
 CL_Record_f(void)
 {
 	char name[MAX_OSPATH];
@@ -235,9 +258,7 @@ CL_Record_f(void)
 			}
 
 			MSG_WriteByte(&buf, svc_configstring);
-
-			MSG_WriteShort(&buf, i);
-			MSG_WriteString(&buf, cl.configstrings[i]);
+			MSG_WriteConfigString(&buf, i, cl.configstrings[i]);
 		}
 	}
 
@@ -277,7 +298,7 @@ CL_Record_f(void)
 	fwrite(buf.data, buf.cursize, 1, cls.demofile);
 }
 
-void
+static void
 CL_Setenv_f(void)
 {
 	int argc = Cmd_Argc();
@@ -315,7 +336,7 @@ CL_Setenv_f(void)
 	}
 }
 
-void
+static void
 CL_Pause_f(void)
 {
 	/* never pause in multiplayer */
@@ -377,7 +398,7 @@ CL_ParseStatusMessage(void)
 /*
  * Load or download any custom player skins and models
  */
-void
+static void
 CL_Skins_f(void)
 {
 	int i;
@@ -439,7 +460,7 @@ CL_FixUpGender(void)
 	}
 }
 
-void
+static void
 CL_Userinfo_f(void)
 {
 	Com_Printf("User info settings:\n");
@@ -481,7 +502,7 @@ void CL_ResetPrecacheCheck (void)
  * The server will send this command right
  * before allowing the client into the server
  */
-void
+static void
 CL_Precache_f(void)
 {
 	/* Yet another hack to let old demos work */
@@ -504,12 +525,13 @@ CL_Precache_f(void)
 	CL_RequestNextDownload();
 }
 
-void CL_CurrentMap_f(void)
+static void
+CL_CurrentMap_f(void)
 {
 	Com_Printf("%s\n", cl.configstrings[CS_MODELS + 1]);
 }
 
-void
+static void
 CL_InitLocal(void)
 {
 	cls.state = ca_disconnected;
@@ -530,6 +552,9 @@ CL_InitLocal(void)
 	cl_noskins = Cvar_Get("cl_noskins", "0", 0);
 	cl_predict = Cvar_Get("cl_predict", "1", 0);
 	cl_showfps = Cvar_Get("cl_showfps", "0", CVAR_ARCHIVE);
+	cl_showspeed = Cvar_Get("cl_showspeed", "0", CVAR_ARCHIVE);
+	cl_laseralpha = Cvar_Get("cl_laseralpha", "0.3", 0);
+	cl_nodownload_list = Cvar_Get("cl_nodownload_list", "", CVAR_ARCHIVE);
 
 	cl_upspeed = Cvar_Get("cl_upspeed", "200", 0);
 	cl_forwardspeed = Cvar_Get("cl_forwardspeed", "200", 0);
@@ -579,7 +604,8 @@ CL_InitLocal(void)
 	cl_vwep = Cvar_Get("cl_vwep", "1", CVAR_ARCHIVE);
 
 #ifdef USE_CURL
-	cl_http_proxy = Cvar_Get("cl_http_proxy", "", 0);
+	cl_http_verifypeer = Cvar_Get("cl_http_verifypeer", "1", CVAR_ARCHIVE);
+	cl_http_proxy = Cvar_Get("cl_http_proxy", "", CVAR_ARCHIVE);
 	cl_http_filelists = Cvar_Get("cl_http_filelists", "1", 0);
 	cl_http_downloads = Cvar_Get("cl_http_downloads", "1", CVAR_ARCHIVE);
 	cl_http_max_connections = Cvar_Get("cl_http_max_connections", "4", 0);
@@ -608,6 +634,7 @@ CL_InitLocal(void)
 	Cmd_AddCommand("reconnect", CL_Reconnect_f);
 
 	Cmd_AddCommand("rcon", CL_Rcon_f);
+	Cmd_AddCommand("packet", CL_Packet_f);
 
 	Cmd_AddCommand("setenv", CL_Setenv_f);
 
@@ -707,9 +734,9 @@ cheatvar_t cheatvars[] = {
 	{NULL, NULL}
 };
 
-int numcheatvars;
+static int numcheatvars;
 
-void
+static void
 CL_FixCvarCheats(void)
 {
 	int i;
@@ -742,7 +769,7 @@ CL_FixCvarCheats(void)
 	}
 }
 
-void
+static void
 CL_UpdateWindowedMouse(void)
 {
 	if (cls.disable_screen)
@@ -994,4 +1021,6 @@ CL_Shutdown(void)
 	S_Shutdown();
 	IN_Shutdown();
 	VID_Shutdown();
+
+	Mods_NamesFinish();
 }

@@ -33,6 +33,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/select.h> /* for fd_set */
 #ifndef FNDELAY
@@ -307,7 +308,7 @@ static char findpattern[MAX_OSPATH];
 static DIR *fdir;
 
 char *
-Sys_FindFirst(char *path, unsigned musthave, unsigned canhave)
+Sys_FindFirst(const char *path, unsigned musthave, unsigned canhave)
 {
 	struct dirent *d;
 	char *p;
@@ -317,12 +318,12 @@ Sys_FindFirst(char *path, unsigned musthave, unsigned canhave)
 		Sys_Error("Sys_BeginFind without close");
 	}
 
-	strcpy(findbase, path);
+	Q_strlcpy(findbase, path, sizeof(findbase));
 
 	if ((p = strrchr(findbase, '/')) != NULL)
 	{
 		*p = 0;
-		strcpy(findpattern, p + 1);
+		Q_strlcpy(findpattern, p + 1, sizeof(findpattern));
 	}
 	else
 	{
@@ -406,14 +407,14 @@ Sys_UnloadGame(void)
 void *
 Sys_GetGameAPI(void *parms)
 {
-	void *(*GetGameAPI)(void *);
+	typedef void *(*fnAPI)(void *);
+	fnAPI GetGameAPI;
 
 #ifdef __EMSCRIPTEN__
 	char gamename[MAX_OSPATH];
 #else
 	char name[MAX_OSPATH];
-	char *path;
-	char *str_p;
+	const char *path, *str_p;
 #endif
 
 #ifdef __APPLE__
@@ -495,7 +496,7 @@ Sys_GetGameAPI(void *parms)
 	}
 #endif // __EMSCRIPTEN__
 
-	GetGameAPI = (void *)dlsym(game_library, "GetGameAPI");
+	GetGameAPI = (fnAPI)dlsym(game_library, "GetGameAPI");
 
 	if (!GetGameAPI)
 	{
@@ -585,7 +586,11 @@ Sys_GetHomeDir(void)
 void
 Sys_Remove(const char *path)
 {
-	remove(path);
+	if (remove(path) == -1 && errno != ENOENT)
+	{
+		Com_Printf("%s: remove %s: %s\n",
+			__func__, path, strerror(errno));
+	}
 }
 
 int
@@ -644,21 +649,21 @@ Sys_Realpath(const char *in, char *out, size_t size)
 void *
 Sys_GetProcAddress(void *handle, const char *sym)
 {
-    if (handle == NULL)
-    {
+	if (handle == NULL)
+	{
 #ifdef RTLD_DEFAULT
-        return dlsym(RTLD_DEFAULT, sym);
+		return dlsym(RTLD_DEFAULT, sym);
 #else
-        /* POSIX suggests that this is a portable equivalent */
-        static void *global_namespace = NULL;
+		/* POSIX suggests that this is a portable equivalent */
+		static void *global_namespace = NULL;
 
-        if (global_namespace == NULL)
-            global_namespace = dlopen(NULL, RTLD_GLOBAL|RTLD_LAZY);
+		if (global_namespace == NULL)
+			global_namespace = dlopen(NULL, RTLD_GLOBAL|RTLD_LAZY);
 
-        return dlsym(global_namespace, sym);
+		return dlsym(global_namespace, sym);
 #endif
-    }
-    return dlsym(handle, sym);
+	}
+	return dlsym(handle, sym);
 }
 
 void

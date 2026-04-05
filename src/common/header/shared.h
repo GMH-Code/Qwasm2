@@ -37,16 +37,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdbool.h>
 
-#ifdef true
- #undef true
-#endif
-
-#ifdef false
- #undef false
-#endif
-
-typedef enum {false, true}  qboolean;
+typedef int qboolean;
 typedef unsigned char byte;
 
 #ifndef NULL
@@ -63,19 +56,23 @@ typedef unsigned char byte;
   #if defined(__GNUC__)
 	#define YQ2_ATTR_MALLOC         __attribute__ ((__malloc__))
 	#define YQ2_ATTR_INLINE         __attribute__((always_inline)) inline
+	#define YQ2_ATTR_RETURNS_NONNULL __attribute__ ((returns_nonnull))
   #elif defined(_MSC_VER)
 	#define YQ2_ATTR_MALLOC         __declspec(restrict)
 	#define YQ2_ATTR_INLINE         __forceinline
+	#define YQ2_ATTR_RETURNS_NONNULL
   #else
 	// no equivalent per see
 	#define YQ2_ATTR_MALLOC
 	#define YQ2_ATTR_INLINE         inline
+	#define YQ2_ATTR_RETURNS_NONNULL
   #endif
 #elif defined(__GNUC__) // GCC and clang should support this attribute
 	#define YQ2_ALIGNAS_SIZE(SIZE)  __attribute__(( __aligned__(SIZE) ))
 	#define YQ2_ALIGNAS_TYPE(TYPE)  __attribute__(( __aligned__(__alignof__(TYPE)) ))
 	// must be used as prefix (YQ2_ATTR_NORETURN void bla();)!
 	#define YQ2_ATTR_NORETURN       __attribute__ ((noreturn))
+	#define YQ2_ATTR_RETURNS_NONNULL __attribute__ ((returns_nonnull))
 	#define YQ2_ATTR_MALLOC         __attribute__ ((__malloc__))
 	#define YQ2_ATTR_INLINE         __attribute__((always_inline)) inline
 	// GCC supports this extension since 4.6
@@ -96,6 +93,7 @@ typedef unsigned char byte;
 
 	// must be used as prefix (YQ2_ATTR_NORETURN void bla();)!
 	#define YQ2_ATTR_NORETURN       __declspec(noreturn)
+	#define YQ2_ATTR_RETURNS_NONNULL
 	#define YQ2_ATTR_MALLOC         __declspec(restrict)
 	#define YQ2_ATTR_INLINE         __forceinline
 	#define YQ2_STATIC_ASSERT(C, M) assert((C) && M)
@@ -104,6 +102,7 @@ typedef unsigned char byte;
 	#define YQ2_ALIGNAS_SIZE(SIZE)
 	#define YQ2_ALIGNAS_TYPE(TYPE)
 	#define YQ2_ATTR_NORETURN
+	#define YQ2_ATTR_RETURNS_NONNULL
 	#define YQ2_ATTR_MALLOC
 	#define YQ2_ATTR_INLINE         inline
 	#define YQ2_STATIC_ASSERT(C, M) assert((C) && M)
@@ -124,12 +123,10 @@ typedef unsigned char byte;
 #define YAW 1                       /* left / right */
 #define ROLL 2                      /* fall over */
 
-#ifndef min
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#endif
-#ifndef max
-#define max(a, b) (((a) > (b)) ? (a) : (b))
-#endif
+#define Q_min(a, b) (((a) < (b)) ? (a) : (b))
+#define Q_max(a, b) (((a) > (b)) ? (a) : (b))
+#define Q_clamp(x, l, u) ((l) > (x) ? (l) : (x) > (u) ? (u) : (x))
+#define Q_signf(x) ((x) < 0.0f ? -1.0f : 1.0f)
 
 #define MAX_STRING_CHARS 2048       /* max length of a string passed to Cmd_TokenizeString */
 #define MAX_STRING_TOKENS 80        /* max tokens resulting from Cmd_TokenizeString */
@@ -219,6 +216,7 @@ typedef enum
 typedef float vec_t;
 typedef vec_t vec3_t[3];
 typedef vec_t vec5_t[5];
+typedef float quat_t[4]; // x, y, z, w
 
 typedef int fixed4_t;
 typedef int fixed8_t;
@@ -260,22 +258,33 @@ void _VectorAdd(vec3_t veca, vec3_t vecb, vec3_t out);
 void _VectorCopy(vec3_t in, vec3_t out);
 
 void ClearBounds(vec3_t mins, vec3_t maxs);
-void AddPointToBounds(vec3_t v, vec3_t mins, vec3_t maxs);
-int VectorCompare(vec3_t v1, vec3_t v2);
-vec_t VectorLength(vec3_t v);
-void CrossProduct(vec3_t v1, vec3_t v2, vec3_t cross);
+void AddPointToBounds(const vec3_t v, vec3_t mins, vec3_t maxs);
+void ClosestPointOnBounds(const vec3_t p, const vec3_t amin, const vec3_t amax, vec3_t out);
+qboolean IsZeroVector(vec3_t v);
+int VectorCompare(const vec3_t v1, const vec3_t v2);
+vec_t VectorLengthSquared(vec3_t v);
+vec_t VectorLength(const vec3_t v);
+void CrossProduct(const vec3_t v1, const vec3_t v2, vec3_t cross);
 vec_t VectorNormalize(vec3_t v); /* returns vector length */
-vec_t VectorNormalize2(vec3_t v, vec3_t out);
+vec_t VectorNormalize2(const vec3_t v, vec3_t out);
 void VectorInverse(vec3_t v);
-void VectorScale(vec3_t in, vec_t scale, vec3_t out);
+void VectorInverse2(const vec3_t v, vec3_t out);
+void VectorScale(const vec3_t in, const vec_t scale, vec3_t out);
+void VectorLerp(const vec3_t v1, const vec3_t v2, const vec_t factor, vec3_t out);
+void VectorToQuat(const vec3_t v, quat_t out);
+void QuatInverse(const quat_t q, quat_t out);
+void QuatMultiply(const quat_t q1, const quat_t q2, quat_t out);
+void QuatAngleAxis(const vec3_t v, float angle, quat_t out);
+void RotateVectorByUnitQuat(vec3_t v, quat_t q_unit);
+float Q_magnitude(float x, float y);
 int Q_log2(int val);
 
-void R_ConcatRotations(float in1[3][3], float in2[3][3], float out[3][3]);
-void R_ConcatTransforms(float in1[3][4], float in2[3][4], float out[3][4]);
+void R_ConcatRotations(const float in1[3][3], const float in2[3][3], float out[3][3]);
+void R_ConcatTransforms(const float in1[3][4], const float in2[3][4], float out[3][4]);
 
-void AngleVectors(vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
-void AngleVectors2(vec3_t value1, vec3_t angles);
-int BoxOnPlaneSide(vec3_t emins, vec3_t emaxs, struct cplane_s *plane);
+void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
+void AngleVectors2(const vec3_t value1, vec3_t angles);
+int BoxOnPlaneSide(const vec3_t emins, const vec3_t emaxs, const struct cplane_s *plane);
 float anglemod(float a);
 float LerpAngle(float a1, float a2, float frac);
 
@@ -306,7 +315,7 @@ void RotatePointAroundVector(vec3_t dst,
 
 char *COM_SkipPath(char *pathname);
 void COM_StripExtension(char *in, char *out);
-const char *COM_FileExtension(const char *in);
+YQ2_ATTR_RETURNS_NONNULL const char *COM_FileExtension(const char *in);
 void COM_FileBase(char *in, char *out);
 void COM_FilePath(const char *in, char *out);
 void COM_DefaultExtension(char *path, const char *extension);
@@ -322,8 +331,9 @@ void Com_PageInMemory(byte *buffer, int size);
 
 /* portable case insensitive compare */
 int Q_stricmp(const char *s1, const char *s2);
-int Q_strcasecmp(char *s1, char *s2);
-int Q_strncasecmp(char *s1, char *s2, int n);
+int Q_strcasecmp(const char *s1, const char *s2);
+int Q_strncasecmp(const char *s1, const char *s2, int n);
+char *Q_strcasestr(const char *s1, const char *s2);
 
 /* portable string lowercase */
 char *Q_strlwr(char *s);
@@ -332,10 +342,21 @@ char *Q_strlwr(char *s);
 int Q_strlcpy(char *dst, const char *src, int size);
 int Q_strlcat(char *dst, const char *src, int size);
 
+/* Delete n characters from s starting at index i */
+void Q_strdel(char *s, size_t i, size_t n);
+
+/* Insert src into dest starting at index i, total, n is the total size of the buffer */
+/* Returns length of src on success, 0 if there is not enough space in dest for src */
+size_t Q_strins(char *dest, const char *src, size_t i, size_t n);
+qboolean Q_strisnum(const char *s);
+
 /* ============================================= */
 
 /* Unicode wrappers that also make sure it's a regular file around fopen(). */
 FILE *Q_fopen(const char *file, const char *mode);
+
+/* Comparator function for qsort(), compares case-insensitive strings. */
+int Q_sort_stricmp(const void *s1, const void *s2);
 
 /* Comparator function for qsort(), compares strings. */
 int Q_sort_strcomp(const void *s1, const void *s2);
@@ -401,7 +422,7 @@ int Hunk_End(void);
 #define SFF_SYSTEM 0x10
 
 /* pass in an attribute mask of things you wish to REJECT */
-char *Sys_FindFirst(char *path, unsigned musthave, unsigned canthave);
+char *Sys_FindFirst(const char *path, unsigned musthave, unsigned canthave);
 char *Sys_FindNext(unsigned musthave, unsigned canthave);
 void Sys_FindClose(void);
 

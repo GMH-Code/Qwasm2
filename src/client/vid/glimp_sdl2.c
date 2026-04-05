@@ -37,7 +37,7 @@
 #include <emscripten.h>
 #endif
 
-int glimp_refreshRate = -1;
+float glimp_refreshRate = -1.0f;
 
 static cvar_t *vid_displayrefreshrate;
 static cvar_t *vid_displayindex;
@@ -738,48 +738,34 @@ GLimp_ShutdownGraphics(void)
 void
 GLimp_GrabInput(qboolean grab)
 {
+	static qboolean seen_error = false;
 	if(window != NULL)
 	{
 		SDL_SetWindowGrab(window, grab ? SDL_TRUE : SDL_FALSE);
 	}
 
-	if(SDL_SetRelativeMouseMode(grab ? SDL_TRUE : SDL_FALSE) < 0)
+	if(SDL_SetRelativeMouseMode(grab ? SDL_TRUE : SDL_FALSE) < 0 && !seen_error)
 	{
+		seen_error = true;
 		Com_Printf("WARNING: Setting Relative Mousemode failed, reason: %s\n", SDL_GetError());
 		Com_Printf("         You should probably update to SDL 2.0.3 or newer!\n");
 	}
 }
 
 /*
- * Returns the current display refresh rate. There're 2 limitations:
- *
- * * The timing code in frame.c only understands full integers, so
- *   values given by vid_displayrefreshrate are always round up. For
- *   example 59.95 become 60. Rounding up is the better choice for
- *   most users because assuming a too high display refresh rate
- *   avoids micro stuttering caused by missed frames if the vsync
- *   is enabled. The price are small and hard to notice timing
- *   problems.
- *
- * * SDL returns only full integers. In most cases they're rounded
- *   up, but in some cases - likely depending on the GPU driver -
- *   they're rounded down. If the value is rounded up, we'll see
- *   some small and nard to notice timing problems. If the value
- *   is rounded down frames will be missed. Both is only relevant
- *   if the vsync is enabled.
+ * Returns the current display refresh rate.
  */
-int
+float
 GLimp_GetRefreshRate(void)
 {
 
 	if (vid_displayrefreshrate->value > -1 ||
 			vid_displayrefreshrate->modified)
 	{
-		glimp_refreshRate = ceil(vid_displayrefreshrate->value);
+		glimp_refreshRate = vid_displayrefreshrate->value;
 		vid_displayrefreshrate->modified = false;
 	}
-
-	if (glimp_refreshRate == -1)
+	else if (glimp_refreshRate == -1)
 	{
 		SDL_DisplayMode mode;
 
@@ -852,4 +838,13 @@ int
 GLimp_GetWindowDisplayIndex(void)
 {
 	return last_display;
+}
+
+int
+GLimp_GetFrameworkVersion(void)
+{
+	SDL_version ver;
+	SDL_VERSION(&ver);
+
+	return ver.major;
 }

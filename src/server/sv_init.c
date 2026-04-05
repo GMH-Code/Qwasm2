@@ -26,15 +26,11 @@
 
 #include "header/server.h"
 
-#define GAMEMODE_SP 0
-#define GAMEMODE_COOP 1
-#define GAMEMODE_DM 2
-
 server_static_t svs; /* persistant server info */
 server_t sv; /* local server */
 
-int
-SV_FindIndex(char *name, int start, int max, qboolean create)
+static int
+SV_FindIndex(const char *name, int start, int max, qboolean create)
 {
 	int i;
 
@@ -67,8 +63,7 @@ SV_FindIndex(char *name, int start, int max, qboolean create)
 	{
 		/* send the update to everyone */
 		MSG_WriteChar(&sv.multicast, svc_configstring);
-		MSG_WriteShort(&sv.multicast, start + i);
-		MSG_WriteString(&sv.multicast, name);
+		MSG_WriteConfigString(&sv.multicast, start + i, name);
 		SV_Multicast(vec3_origin, MULTICAST_ALL_R);
 	}
 
@@ -98,7 +93,7 @@ SV_ImageIndex(char *name)
  * to the clients -- only the fields that differ from the
  * baseline will be transmitted
  */
-void
+static void
 SV_CreateBaseline(void)
 {
 	edict_t *svent;
@@ -122,11 +117,16 @@ SV_CreateBaseline(void)
 
 		/* take current state as baseline */
 		VectorCopy(svent->s.origin, svent->s.old_origin);
+		if (entnum >= MAX_EDICTS)
+		{
+			Com_Error(ERR_DROP, "%s: bad entity %d >= %d\n",
+				__func__, entnum, MAX_EDICTS);
+		}
 		sv.baselines[entnum] = svent->s;
 	}
 }
 
-void
+static void
 SV_CheckForSavegame(qboolean isautosave)
 {
 	char name[MAX_OSPATH];
@@ -181,7 +181,7 @@ SV_CheckForSavegame(qboolean isautosave)
  * Change the server to a new map, taking all connected
  * clients along with it.
  */
-void
+static void
 SV_SpawnServer(char *server, char *spawnpoint, server_state_t serverstate,
 		qboolean attractloop, qboolean loadgame, qboolean isautosave)
 {
@@ -431,6 +431,7 @@ SV_InitGame(void)
 		Cvar_FullSet("maxclients", "1", CVAR_SERVERINFO | CVAR_LATCH);
 	}
 
+	svs.gamemode = gamemode;
 	svs.spawncount = randk();
 	svs.clients = Z_Malloc(sizeof(client_t) * maxclients->value);
 	svs.num_client_entities = maxclients->value * UPDATE_BACKUP * 64;
@@ -487,8 +488,9 @@ SV_Map(qboolean attractloop, char *levelstring, qboolean loadgame, qboolean isau
 {
 	char level[MAX_QPATH];
 	char *ch;
-	int l;
+	size_t l;
 	char spawnpoint[MAX_QPATH];
+	const char *ext;
 
 	sv.loadgame = loadgame;
 	sv.attractloop = attractloop;
@@ -544,7 +546,9 @@ SV_Map(qboolean attractloop, char *levelstring, qboolean loadgame, qboolean isau
 		--l;
 	}
 
-	if ((l > 4) && !strcmp(level + l - 4, ".cin"))
+	ext = (l <= 4) ? NULL : level + l - 4;
+
+	if (ext && !strcmp(ext, ".cin"))
 	{
 #ifndef DEDICATED_ONLY
 		SCR_BeginLoadingPlaque(); /* for local system */
@@ -552,7 +556,7 @@ SV_Map(qboolean attractloop, char *levelstring, qboolean loadgame, qboolean isau
 		SV_BroadcastCommand("changing\n");
 		SV_SpawnServer(level, spawnpoint, ss_cinematic, attractloop, loadgame, isautosave);
 	}
-	else if ((l > 4) && !strcmp(level + l - 4, ".dm2"))
+	else if (ext && !strcmp(ext, ".dm2"))
 	{
 #ifndef DEDICATED_ONLY
 		SCR_BeginLoadingPlaque(); /* for local system */
@@ -560,7 +564,10 @@ SV_Map(qboolean attractloop, char *levelstring, qboolean loadgame, qboolean isau
 		SV_BroadcastCommand("changing\n");
 		SV_SpawnServer(level, spawnpoint, ss_demo, attractloop, loadgame, isautosave);
 	}
-	else if ((l > 4) && !strcmp(level + l - 4, ".pcx"))
+	else if (ext && (!strcmp(ext, ".pcx") ||
+					!strcmp(ext, ".tga") ||
+					!strcmp(ext, ".jpg") ||
+					!strcmp(ext, ".png")))
 	{
 #ifndef DEDICATED_ONLY
 		SCR_BeginLoadingPlaque(); /* for local system */
@@ -574,7 +581,14 @@ SV_Map(qboolean attractloop, char *levelstring, qboolean loadgame, qboolean isau
 		SCR_BeginLoadingPlaque(); /* for local system */
 #endif
 		SV_BroadcastCommand("changing\n");
-		SV_SendClientMessages();
+
+		/* for some reason calling send messages here causes a lengthy reconnect delay */
+		if (!(SV_Optimizations() & OPTIMIZE_RECONNECT))
+		{
+			SV_SendClientMessages();
+			SV_SendPrepClientMessages();
+		}
+
 		SV_SpawnServer(level, spawnpoint, ss_game, attractloop, loadgame, isautosave);
 		Cbuf_CopyToDefer();
 	}

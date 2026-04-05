@@ -32,7 +32,7 @@
 #include "shared.h"
 #include "crc.h"
 
-#define YQ2VERSION "8.31pre"
+#define YQ2VERSION "8.60"
 #define BASEDIRNAME "baseq2"
 
 #ifndef YQ2OSTYPE
@@ -98,30 +98,35 @@ typedef struct sizebuf_s
 void SZ_Init(sizebuf_t *buf, byte *data, int length);
 void SZ_Clear(sizebuf_t *buf);
 void *SZ_GetSpace(sizebuf_t *buf, int length);
-void SZ_Write(sizebuf_t *buf, void *data, int length);
-void SZ_Print(sizebuf_t *buf, char *data);  /* strcats onto the sizebuf */
+void SZ_Write(sizebuf_t *buf, const void *data, int length);
+void SZ_Print(sizebuf_t *buf, const char *data);  /* strcats onto the sizebuf */
 
 /* ================================================================== */
 
 struct usercmd_s;
 struct entity_state_s;
 
+size_t MSG_ConfigString_Size(const char *s);
+size_t MSG_DeltaEntity_Size(const entity_state_t *from, const entity_state_t *to,
+	qboolean force, qboolean newentity);
+
 void MSG_WriteChar(sizebuf_t *sb, int c);
 void MSG_WriteByte(sizebuf_t *sb, int c);
 void MSG_WriteShort(sizebuf_t *sb, int c);
 void MSG_WriteLong(sizebuf_t *sb, int c);
 void MSG_WriteFloat(sizebuf_t *sb, float f);
-void MSG_WriteString(sizebuf_t *sb, char *s);
+void MSG_WriteString(sizebuf_t *sb, const char *s);
 void MSG_WriteCoord(sizebuf_t *sb, float f);
 void MSG_WritePos(sizebuf_t *sb, vec3_t pos);
 void MSG_WriteAngle(sizebuf_t *sb, float f);
 void MSG_WriteAngle16(sizebuf_t *sb, float f);
-void MSG_WriteDeltaUsercmd(sizebuf_t *sb, struct usercmd_s *from,
-		struct usercmd_s *cmd);
-void MSG_WriteDeltaEntity(struct entity_state_s *from,
-		struct entity_state_s *to, sizebuf_t *msg,
+void MSG_WriteConfigString(sizebuf_t *sb, short index, const char *s);
+void MSG_WriteDeltaUsercmd(sizebuf_t *sb, const struct usercmd_s *from,
+		const struct usercmd_s *cmd);
+void MSG_WriteDeltaEntity(const struct entity_state_s *from,
+		const struct entity_state_s *to, sizebuf_t *msg,
 		qboolean force, qboolean newentity);
-void MSG_WriteDir(sizebuf_t *sb, vec3_t vector);
+void MSG_WriteDir(sizebuf_t *sb, const vec3_t vector);
 
 void MSG_BeginReading(sizebuf_t *sb);
 
@@ -448,13 +453,13 @@ void Cmd_ForwardToServer(void);
 
 extern cvar_t *cvar_vars;
 
-cvar_t *Cvar_Get(const char *var_name, char *value, int flags);
+cvar_t *Cvar_Get(const char *var_name, const char *value, int flags);
 
 /* creates the variable if it doesn't exist, or returns the existing one */
 /* if it exists, the value will not be changed, but flags will be ORed in */
 /* that allows variables to be unarchived without needing bitflags */
 
-cvar_t *Cvar_Set(const char *var_name, char *value);
+cvar_t *Cvar_Set(const char *var_name, const char *value);
 
 /* will create the variable if it doesn't exist */
 
@@ -462,7 +467,7 @@ cvar_t *Cvar_ForceSet(const char *var_name, char *value);
 
 /* will set the variable even if NOSET or LATCH */
 
-cvar_t *Cvar_FullSet(const char *var_name, char *value, int flags);
+cvar_t *Cvar_FullSet(const char *var_name, const char *value, int flags);
 
 void Cvar_SetValue(const char *var_name, float value);
 
@@ -616,7 +621,7 @@ qboolean Netchan_CanReliable(netchan_t *chan);
 #include "files.h"
 
 cmodel_t *CM_LoadMap(char *name, qboolean clientload, unsigned *checksum);
-cmodel_t *CM_InlineModel(char *name);       /* *1, *2, etc */
+cmodel_t *CM_InlineModel(const char *name);       /* *1, *2, etc */
 
 int CM_NumClusters(void);
 int CM_NumInlineModels(void);
@@ -630,11 +635,11 @@ int CM_PointContents(vec3_t p, int headnode);
 int CM_TransformedPointContents(vec3_t p, int headnode,
 		vec3_t origin, vec3_t angles);
 
-trace_t CM_BoxTrace(vec3_t start, vec3_t end, vec3_t mins,
-		vec3_t maxs, int headnode, int brushmask);
-trace_t CM_TransformedBoxTrace(vec3_t start, vec3_t end,
-		vec3_t mins, vec3_t maxs, int headnode,
-		int brushmask, vec3_t origin, vec3_t angles);
+trace_t CM_BoxTrace(const vec3_t start, const vec3_t end, const vec3_t mins,
+		const vec3_t maxs, int headnode, int brushmask);
+trace_t CM_TransformedBoxTrace(const vec3_t start, const vec3_t end,
+		const vec3_t mins, const vec3_t maxs, int headnode,
+		int brushmask, const vec3_t origin, const vec3_t angles);
 
 byte *CM_ClusterPVS(int cluster);
 byte *CM_ClusterPHS(int cluster);
@@ -701,18 +706,18 @@ int FS_FRead(void *buffer, int size, int count, fileHandle_t f);
 // returns NULL if f is no valid handle
 const char* FS_GetFilenameForHandle(fileHandle_t f);
 
-char **FS_ListFiles(char *findname, int *numfiles,
+char **FS_ListFiles(const char *findname, int *numfiles,
 		unsigned musthave, unsigned canthave);
-char **FS_ListFiles2(char *findname, int *numfiles,
+char **FS_ListFiles2(const char *findname, int *numfiles,
 		unsigned musthave, unsigned canthave);
 void FS_FreeList(char **list, int nfiles);
 
 void FS_InitFilesystem(void);
 void FS_ShutdownFilesystem(void);
-void FS_BuildGameSpecificSearchPath(char *dir);
+void FS_BuildGameSpecificSearchPath(const char *dir);
 char *FS_Gamedir(void);
-char *FS_NextPath(char *prevpath);
-int FS_LoadFile(char *path, void **buffer);
+char *FS_NextPath(const char *prevpath);
+int FS_LoadFile(const char *path, void **buffer);
 qboolean FS_FileInGamedir(const char *file);
 qboolean FS_AddPAKFromGamedir(const char *pak);
 const char* FS_GetNextRawPath(const char* lastRawPath);
@@ -868,5 +873,7 @@ const char *Sys_GetBinaryDir(void);
 void Sys_SetupFPU(void);
 
 /* ======================================================================= */
+
+void Mods_NamesFinish(void);
 
 #endif

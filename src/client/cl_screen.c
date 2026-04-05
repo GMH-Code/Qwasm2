@@ -66,6 +66,8 @@ int crosshair_width, crosshair_height;
 
 extern cvar_t *cl_showfps;
 extern cvar_t *crosshair_scale;
+extern cvar_t *cl_showspeed;
+extern void GetPlayerSpeed(float *speed, float *speedxy);
 
 void SCR_TimeRefresh_f(void);
 void SCR_Loading_f(void);
@@ -870,7 +872,7 @@ char *sb_nums[2][11] = {
 
 #define ICON_WIDTH 24
 #define ICON_HEIGHT 24
-#define CHAR_WIDTH 16
+#define CHARACTER_WIDTH 16
 #define ICON_SPACE 8
 
 /*
@@ -981,7 +983,7 @@ SCR_DrawFieldScaled(int x, int y, int color, int width, int value, float factor)
 	}
 
 	SCR_AddDirtyPoint(x, y);
-	SCR_AddDirtyPoint(x + (width * CHAR_WIDTH + 2)*factor, y + factor*24);
+	SCR_AddDirtyPoint(x + (width * CHARACTER_WIDTH + 2)*factor, y + factor*24);
 
 	Com_sprintf(num, sizeof(num), "%i", value);
 	l = (int)strlen(num);
@@ -991,7 +993,7 @@ SCR_DrawFieldScaled(int x, int y, int color, int width, int value, float factor)
 		l = width;
 	}
 
-	x += (2 + CHAR_WIDTH * (width - l)) * factor;
+	x += (2 + CHARACTER_WIDTH * (width - l)) * factor;
 
 	ptr = num;
 
@@ -1008,7 +1010,7 @@ SCR_DrawFieldScaled(int x, int y, int color, int width, int value, float factor)
 		}
 
 		Draw_PicScaled(x, y, sb_nums[color][frame], factor);
-		x += CHAR_WIDTH*factor;
+		x += CHARACTER_WIDTH*factor;
 		ptr++;
 		l--;
 	}
@@ -1447,6 +1449,57 @@ SCR_DrawLayout(void)
 
 // ----
 
+void 
+SCR_DrawSpeed(void) 
+{
+	if (cl_showspeed->value < 1)  //Disabled, do nothing
+		return;
+
+	char spd_str[32];
+	float speed, speedxy;
+	float scale = SCR_GetConsoleScale();
+	int str_len, xPos, yPos = 0;
+	
+	GetPlayerSpeed(&speed, &speedxy);
+	snprintf(spd_str, sizeof(spd_str), "%6.2f (%6.2f) QU/s", speed, speedxy);
+	str_len = scale * (strlen(spd_str) * 8 + 2);
+	
+	if (cl_showspeed->value == 1) //Draw speed and xy speed at top right
+	{
+		xPos = viddef.width - str_len;
+
+		if (cl_showfps->value == 1 || cl_showfps->value == 2)  // If showfps is enabled, draw it underneath
+		{
+			yPos = scale * 10;
+		}
+		else if (cl_showfps->value > 2)
+		{
+			yPos = scale * 20;
+		}
+
+		DrawStringScaled(xPos, yPos, spd_str, scale);
+		SCR_AddDirtyPoint(xPos, yPos);
+		SCR_AddDirtyPoint(viddef.width, yPos);
+	}
+
+	else if (cl_showspeed->value > 1) //Draw only xy speed under the crosshair
+	{
+		if (scale != 1)  // Check if low resolution
+		{
+			scale -= 1;
+		}
+
+		snprintf(spd_str, sizeof(spd_str), "%6.2f", speedxy);
+		str_len = scale * (strlen(spd_str) * 8 + 2);
+		yPos = scr_vrect.y + (scr_vrect.height / 2) + (scale * 10);
+		xPos = scr_vrect.x + (scr_vrect.width / 2) - (str_len / 2);
+		
+		DrawStringScaled(xPos, yPos, spd_str, scale);
+		SCR_AddDirtyPoint(xPos, yPos);
+		SCR_AddDirtyPoint(xPos + str_len, yPos);
+	}
+}
+
 void
 SCR_Framecounter(void) {
 	long long newtime;
@@ -1648,6 +1701,7 @@ SCR_UpdateScreen(void)
 			V_RenderView(separation[i]);
 
 			SCR_DrawStats();
+			SCR_DrawSpeed();
 
 			if (cl.frame.playerstate.stats[STAT_LAYOUTS] & 1)
 			{

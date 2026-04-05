@@ -8,7 +8,7 @@
 #  - Renderer libraries (gl1, gl3, soft)                 #
 #                                                        #
 # Base dependencies:                                     #
-#  - SDL 2.0                                             #
+#  - SDL 2 or SDL 3                                      #
 #  - libGL                                               #
 #  - Vulkan headers                                      #
 #                                                        #
@@ -52,6 +52,9 @@ WITH_OPENAL:=yes
 # inject custom libraries, e.g. a patches libSDL.so
 # or libopenal.so. Not supported on Windows.
 WITH_RPATH:=yes
+
+# Builds with SDL 3 instead of SDL 2.
+WITH_SDL3:=no
 
 # Enable systemwide installation of game assets.
 WITH_SYSTEMWIDE:=no
@@ -156,7 +159,7 @@ endif
 # Highest supported optimizations are -O2, higher levels
 # will likely break this crappy code.
 ifdef DEBUG
-CFLAGS ?= -O0 -g -Wall -pipe
+CFLAGS ?= -O0 -g -Wall -pipe -DDEBUG
 ifdef ASAN
 override CFLAGS += -fsanitize=address -DUSE_SANITIZER
 endif
@@ -212,7 +215,11 @@ endif
 ifeq ($(COMPILER), clang)
 	# -Wno-missing-braces because otherwise clang complains
 	#  about totally valid 'vec3_t bla = {0}' constructs.
-	override CFLAGS += -Wno-missing-braces
+	# -fno-common avoids linker warnings due
+	#  uninitialized global variables treated as "common".
+	#  On most platforms clang sets no-commom by default,
+	#  MacOS is a prominent exception.
+	override CFLAGS += -Wno-missing-braces -fno-common
 else ifeq ($(COMPILER), gcc)
 	# GCC 8.0 or higher.
 	ifeq ($(shell test $(COMPILERVER) -ge 80000; echo $$?),0)
@@ -293,7 +300,16 @@ endif
 # ----------
 
 # Extra CFLAGS for SDL.
+ifeq ($(WITH_SDL3),yes)
+SDLCFLAGS := $(shell pkgconf --cflags sdl3)
+SDLCFLAGS += -DUSE_SDL3
+else
 SDLCFLAGS := $(shell sdl2-config --cflags)
+endif
+
+ifdef NO_SDL_GYRO
+SDLCFLAGS += -DNO_SDL_GYRO
+endif
 
 # ----------
 
@@ -308,6 +324,8 @@ else ifeq ($(YQ2_OSTYPE),OpenBSD)
 INCLUDE ?= -I/usr/local/include
 else ifeq ($(YQ2_OSTYPE),Windows)
 INCLUDE ?= -I/usr/include
+else ifeq ($(YQ2_OSTYPE),Darwin)
+INCLUDE ?= -I/usr/local/include -I/opt/homebrew/include
 endif
 
 # ----------
@@ -323,10 +341,12 @@ else ifeq ($(YQ2_OSTYPE),OpenBSD)
 LDFLAGS ?= -L/usr/local/lib
 else ifeq ($(YQ2_OSTYPE),Windows)
 LDFLAGS ?= -L/usr/lib
+else ifeq ($(YQ2_OSTYPE),Darwin)
+LDFLAGS ?= -L/usr/local/lib -L/opt/homebrew/lib
 else ifeq ($(YQ2_OSTYPE),Emscripten)
 ifndef DEBUG
 LDFLAGS ?= -O3
-endif
+endif # !DEBUG
 endif
 
 # Link address sanitizer if requested.
@@ -376,11 +396,19 @@ endif
 # ----------
 
 # Extra LDFLAGS for SDL
+ifeq ($(WITH_SDL3),yes)
+ifeq ($(YQ2_OSTYPE), Darwin)
+SDLLDFLAGS := -lSDL3
+else
+SDLLDFLAGS := $(shell pkgconf --libs sdl3)
+endif
+else
 ifeq ($(YQ2_OSTYPE), Darwin)
 SDLLDFLAGS := -lSDL2
-else # not Darwin
+else
 SDLLDFLAGS := $(shell sdl2-config --libs)
-endif # Darwin
+endif
+endif
 
 # The renderer libs don't need libSDL2main, libmingw32 or -mwindows.
 ifeq ($(YQ2_OSTYPE), Windows)
@@ -400,16 +428,21 @@ endif
 # ----------
 
 # Phony targets
-.PHONY : all client game icon server ref_gl1 ref_gl3 ref_gles3 ref_soft
+.PHONY : all client game icon server ref_gl1 ref_gl3 ref_gles1 ref_gles3 ref_soft
 
 # ----------
 
-# Builds everything
+# Builds everything but the GLES1 renderer
 ifeq ($(YQ2_OSTYPE), Emscripten)
 all: config ref_soft ref_gl1 ref_gles3 game client
 else
 all: config client server game ref_gl1 ref_gl3 ref_gles3 ref_soft
 endif
+
+# ----------
+
+# Builds everything, including the GLES1 renderer
+with_gles1: all ref_gles1
 
 # ----------
 
@@ -421,6 +454,7 @@ config:
 	@echo "WITH_CURL = $(WITH_CURL)"
 	@echo "WITH_OPENAL = $(WITH_OPENAL)"
 	@echo "WITH_RPATH = $(WITH_RPATH)"
+	@echo "WITH_SDL3 = $(WITH_SDL3)"
 	@echo "WITH_SYSTEMWIDE = $(WITH_SYSTEMWIDE)"
 	@echo "WITH_SYSTEMDIR = $(WITH_SYSTEMDIR)"
 	@echo "============================"
@@ -513,8 +547,9 @@ ifeq ($(WITH_OPENAL),yes)
 ifeq ($(YQ2_OSTYPE), OpenBSD)
 release/quake2 : CFLAGS += -DUSE_OPENAL -DDEFAULT_OPENAL_DRIVER='"libopenal.so"'
 else ifeq ($(YQ2_OSTYPE), Darwin)
-release/quake2 : CFLAGS += -DUSE_OPENAL -DDEFAULT_OPENAL_DRIVER='"libopenal.dylib"' -I/usr/local/opt/openal-soft/include
-release/quake2 : LDFLAGS += -L/usr/local/opt/openal-soft/lib -rpath /usr/local/opt/openal-soft/lib
+OPENAL_PATH ?= $(shell brew --prefix openal-soft)
+release/quake2 : CFLAGS += -DUSE_OPENAL -DDEFAULT_OPENAL_DRIVER='"libopenal.dylib"' -I$(OPENAL_PATH)/include
+release/quake2 : LDFLAGS += -L$(OPENAL_PATH)/lib -rpath $(OPENAL_PATH)/lib
 else
 release/quake2 : CFLAGS += -DUSE_OPENAL -DDEFAULT_OPENAL_DRIVER='"libopenal.so.1"'
 endif
@@ -654,6 +689,47 @@ build/ref_gl1/%.o: %.c
 	@echo "===> CC $<"
 	${Q}mkdir -p $(@D)
 	${Q}$(CC) -c $(CFLAGS) $(SDLCFLAGS) $(INCLUDE) -o $@ $<
+
+# ----------
+
+# The OpenGL ES 1.0 renderer lib
+
+ifeq ($(YQ2_OSTYPE), Windows)
+
+ref_gles1:
+	@echo "===> Building ref_gles1.dll"
+	$(MAKE) release/ref_gles1.dll
+
+release/ref_gles1.dll : GLAD_INCLUDE = -Isrc/client/refresh/gl1/glad-gles1/include
+release/ref_gles1.dll : CFLAGS += -DYQ2_GL1_GLES
+release/ref_gles1.dll : LDFLAGS += -shared
+
+else ifeq ($(YQ2_OSTYPE), Darwin)
+
+ref_gles1:
+	@echo "===> Building ref_gles1.dylib"
+	$(MAKE) release/ref_gles1.dylib
+
+release/ref_gles1.dylib : GLAD_INCLUDE = -Isrc/client/refresh/gl1/glad-gles1/include
+release/ref_gles1.dylib : CFLAGS += -DYQ2_GL1_GLES
+release/ref_gles1.dylib : LDFLAGS += -shared
+
+else # not Windows or Darwin
+
+ref_gles1:
+	@echo "===> Building ref_gles1.so"
+	$(MAKE) release/ref_gles1.so
+
+release/ref_gles1.so : GLAD_INCLUDE = -Isrc/client/refresh/gl1/glad-gles1/include
+release/ref_gles1.so : CFLAGS += -DYQ2_GL1_GLES -fPIC
+release/ref_gles1.so : LDFLAGS += -shared
+
+endif # OS specific ref_gles1 stuff
+
+build/ref_gles1/%.o: %.c
+	@echo "===> CC $<"
+	${Q}mkdir -p $(@D)
+	${Q}$(CC) -c $(CFLAGS) $(SDLCFLAGS) $(INCLUDE) $(GLAD_INCLUDE) -o $@ $<
 
 # ----------
 
@@ -925,6 +1001,7 @@ GAME_OBJS_ = \
 CLIENT_OBJS_ := \
 	src/backends/generic/misc.o \
 	src/client/cl_cin.o \
+	src/client/cl_image.o \
 	src/client/cl_console.o \
 	src/client/cl_download.o \
 	src/client/cl_effects.o \
@@ -943,17 +1020,16 @@ CLIENT_OBJS_ := \
 	src/client/cl_view.o \
 	src/client/curl/download.o \
 	src/client/curl/qcurl.o \
-	src/client/input/sdl.o \
+	src/client/input/gyro.o \
 	src/client/menu/menu.o \
 	src/client/menu/qmenu.o \
 	src/client/menu/videomenu.o \
-	src/client/sound/sdl.o \
 	src/client/sound/ogg.o \
 	src/client/sound/openal.o \
 	src/client/sound/qal.o \
+	src/client/sound/sdl.o \
 	src/client/sound/sound.o \
 	src/client/sound/wave.o \
-	src/client/vid/glimp_sdl.o \
 	src/client/vid/vid.o \
 	src/common/argproc.o \
 	src/common/clientserver.o \
@@ -988,6 +1064,16 @@ CLIENT_OBJS_ := \
 	src/server/sv_send.o \
 	src/server/sv_user.o \
 	src/server/sv_world.o
+
+ifeq ($(WITH_SDL3),yes)
+CLIENT_OBJS_ += \
+	src/client/input/sdl3.o \
+	src/client/vid/glimp_sdl3.o
+else
+CLIENT_OBJS_ += \
+	src/client/input/sdl2.o \
+	src/client/vid/glimp_sdl2.o
+endif
 
 ifeq ($(YQ2_OSTYPE), Windows)
 CLIENT_OBJS_ += \
@@ -1028,6 +1114,8 @@ REFGL1_OBJS_ := \
 	src/client/refresh/gl1/gl1_surf.o \
 	src/client/refresh/gl1/gl1_warp.o \
 	src/client/refresh/gl1/gl1_sdl.o \
+	src/client/refresh/gl1/gl1_buffer.o \
+	src/client/refresh/files/common.o \
 	src/client/refresh/files/surf.o \
 	src/client/refresh/files/models.o \
 	src/client/refresh/files/pcx.o \
@@ -1036,6 +1124,9 @@ REFGL1_OBJS_ := \
 	src/client/refresh/files/pvs.o \
 	src/common/shared/shared.o \
 	src/common/md4.o
+
+REFGL1_OBJS_GLADEES_ := \
+	src/client/refresh/gl1/glad-gles1/src/glad.o
 
 ifeq ($(YQ2_OSTYPE), Windows)
 REFGL1_OBJS_ += \
@@ -1060,6 +1151,7 @@ REFGL3_OBJS_ := \
 	src/client/refresh/gl3/gl3_surf.o \
 	src/client/refresh/gl3/gl3_warp.o \
 	src/client/refresh/gl3/gl3_shaders.o \
+	src/client/refresh/files/common.o \
 	src/client/refresh/files/surf.o \
 	src/client/refresh/files/models.o \
 	src/client/refresh/files/pcx.o \
@@ -1104,6 +1196,7 @@ REFSOFT_OBJS_ := \
 	src/client/refresh/soft/sw_sprite.o \
 	src/client/refresh/soft/sw_surf.o \
 	src/client/refresh/files/surf.o \
+	src/client/refresh/files/common.o \
 	src/client/refresh/files/models.o \
 	src/client/refresh/files/pcx.o \
 	src/client/refresh/files/stb.o \
@@ -1178,6 +1271,8 @@ endif
 # Rewrite paths to our object directory.
 CLIENT_OBJS = $(patsubst %,build/client/%,$(CLIENT_OBJS_))
 REFGL1_OBJS = $(patsubst %,build/ref_gl1/%,$(REFGL1_OBJS_))
+REFGLES1_OBJS = $(patsubst %,build/ref_gles1/%,$(REFGL1_OBJS_))
+REFGLES1_OBJS += $(patsubst %,build/ref_gles1/%,$(REFGL1_OBJS_GLADEES_))
 REFGL3_OBJS = $(patsubst %,build/ref_gl3/%,$(REFGL3_OBJS_))
 REFGL3_OBJS += $(patsubst %,build/ref_gl3/%,$(REFGL3_OBJS_GLADE_))
 REFGLES3_OBJS = $(patsubst %,build/ref_gles3/%,$(REFGL3_OBJS_))
@@ -1192,6 +1287,7 @@ GAME_OBJS = $(patsubst %,build/baseq2/%,$(GAME_OBJS_))
 CLIENT_DEPS= $(CLIENT_OBJS:.o=.d)
 GAME_DEPS= $(GAME_OBJS:.o=.d)
 REFGL1_DEPS= $(REFGL1_OBJS:.o=.d)
+REFGLES1_DEPS= $(REFGLES1_OBJS:.o=.d)
 REFGL3_DEPS= $(REFGL3_OBJS:.o=.d)
 REFGLES3_DEPS= $(REFGLES3_OBJS:.o=.d)
 REFSOFT_DEPS= $(REFSOFT_OBJS:.o=.d)
@@ -1201,6 +1297,7 @@ SERVER_DEPS= $(SERVER_OBJS:.o=.d)
 -include $(CLIENT_DEPS)
 -include $(GAME_DEPS)
 -include $(REFGL1_DEPS)
+-include $(REFGLES1_DEPS)
 -include $(REFGL3_DEPS)
 -include $(REFGLES3_DEPS)
 -include $(SERVER_DEPS)
@@ -1230,7 +1327,7 @@ endif
 ifeq ($(YQ2_OSTYPE), Windows)
 release/q2ded.exe : $(SERVER_OBJS) icon
 	@echo "===> LD $@"
-	${Q}$(CC) $(LDFLAGS) build/icon/icon.res $(SERVER_OBJS) $(LDLIBS) $(SDLLDFLAGS) -o $@
+	${Q}$(CC) $(LDFLAGS) build/icon/icon.res $(SERVER_OBJS) $(LDLIBS) -o $@
 	$(Q)strip $@
 else ifneq ($(YQ2_OSTYPE), Emscripten)
 release/q2ded : $(SERVER_OBJS)
@@ -1256,6 +1353,22 @@ else
 release/ref_gl1.so : $(REFGL1_OBJS)
 	@echo "===> LD $@"
 	${Q}$(CC) $(LDFLAGS) $(REFGL1_OBJS) $(LDLIBS) $(SDLLDFLAGS) -o $@
+endif
+
+# release/ref_gles1.so
+ifeq ($(YQ2_OSTYPE), Windows)
+release/ref_gles1.dll : $(REFGLES1_OBJS)
+	@echo "===> LD $@"
+	${Q}$(CC) $(LDFLAGS) $(REFGLES1_OBJS) $(LDLIBS) $(DLL_SDLLDFLAGS) -o $@
+	$(Q)strip $@
+else ifeq ($(YQ2_OSTYPE), Darwin)
+release/ref_gles1.dylib : $(REFGLES1_OBJS)
+	@echo "===> LD $@"
+	${Q}$(CC) $(LDFLAGS) $(REFGLES1_OBJS) $(LDLIBS) $(SDLLDFLAGS) -o $@
+else
+release/ref_gles1.so : $(REFGLES1_OBJS)
+	@echo "===> LD $@"
+	${Q}$(CC) $(LDFLAGS) $(REFGLES1_OBJS) $(LDLIBS) $(SDLLDFLAGS) -o $@
 endif
 
 # release/ref_gl3.so

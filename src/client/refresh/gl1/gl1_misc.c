@@ -125,7 +125,7 @@ R_ScreenShot(void)
 
 	if (!buffer)
 	{
-		R_Printf(PRINT_ALL, "R_ScreenShot: Couldn't malloc %d bytes\n", w*h*3);
+		Com_Printf("%s: Couldn't malloc %d bytes\n", __func__, w*h*3);
 		return;
 	}
 
@@ -160,16 +160,15 @@ R_ScreenShot(void)
 void
 R_Strings(void)
 {
-	R_Printf(PRINT_ALL, "GL_VENDOR: %s\n", gl_config.vendor_string);
-	R_Printf(PRINT_ALL, "GL_RENDERER: %s\n", gl_config.renderer_string);
-	R_Printf(PRINT_ALL, "GL_VERSION: %s\n", gl_config.version_string);
-	R_Printf(PRINT_ALL, "GL_EXTENSIONS: %s\n", gl_config.extensions_string);
+	Com_Printf("GL_VENDOR: %s\n", gl_config.vendor_string);
+	Com_Printf("GL_RENDERER: %s\n", gl_config.renderer_string);
+	Com_Printf("GL_VERSION: %s\n", gl_config.version_string);
+	Com_Printf("GL_EXTENSIONS: %s\n", gl_config.extensions_string);
 }
 
 void
 R_SetDefaultState(void)
 {
-	glClearColor(1, 0, 0.5, 0.5);
 	glDisable(GL_MULTISAMPLE);
 	glCullFace(GL_FRONT);
 	glEnable(GL_TEXTURE_2D);
@@ -208,9 +207,9 @@ R_SetDefaultState(void)
 		attenuations[1] = gl1_particle_att_b->value;
 		attenuations[2] = gl1_particle_att_c->value;
 
-		qglPointParameterfARB(GL_POINT_SIZE_MIN_EXT, gl1_particle_min_size->value);
-		qglPointParameterfARB(GL_POINT_SIZE_MAX_EXT, gl1_particle_max_size->value);
-		qglPointParameterfvARB(GL_DISTANCE_ATTENUATION_EXT, attenuations);
+		qglPointParameterf(GL_POINT_SIZE_MIN, gl1_particle_min_size->value);
+		qglPointParameterf(GL_POINT_SIZE_MAX, gl1_particle_max_size->value);
+		qglPointParameterfv(GL_POINT_DISTANCE_ATTENUATION, attenuations);
 
 		/* GL_POINT_SMOOTH is not implemented by some OpenGL
 		   drivers, especially the crappy Mesa3D backends like

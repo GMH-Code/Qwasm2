@@ -54,7 +54,8 @@ CL_AddMuzzleFlash(void)
 
 	if ((i < 1) || (i >= MAX_EDICTS))
 	{
-		Com_Error(ERR_DROP, "CL_AddMuzzleFlash: bad entity");
+		Com_Error(ERR_DROP, "%s: bad entity %d >= %d\n",
+			__func__, i, MAX_EDICTS);
 	}
 
 	weapon = MSG_ReadByte(&net_message);
@@ -119,7 +120,7 @@ CL_AddMuzzleFlash(void)
 			dl->color[0] = 1;
 			dl->color[1] = 1;
 			dl->color[2] = 0;
-			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%lub.wav",
+			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%db.wav",
 				(randk() % 5) + 1);
 			S_StartSound(NULL, i, CHAN_WEAPON, S_RegisterSound(
 						soundname), volume, ATTN_NORM, 0);
@@ -145,7 +146,7 @@ CL_AddMuzzleFlash(void)
 			dl->color[0] = 1;
 			dl->color[1] = 0.25;
 			dl->color[2] = 0;
-			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%lub.wav",
+			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%db.wav",
 				(randk() % 5) + 1);
 			S_StartSound(NULL, i, CHAN_WEAPON, S_RegisterSound(
 						soundname), volume, ATTN_NORM, 0);
@@ -156,11 +157,11 @@ CL_AddMuzzleFlash(void)
 			dl->color[1] = 0.5;
 			dl->color[2] = 0;
 			dl->die = cl.time + 0.1;  /* long delay */
-			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%lub.wav",
+			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%db.wav",
 				(randk() % 5) + 1);
 			S_StartSound(NULL, i, CHAN_WEAPON, S_RegisterSound(
 						soundname), volume, ATTN_NORM, 0);
-			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%lub.wav",
+			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%db.wav",
 				(randk() % 5) + 1);
 			S_StartSound(NULL, i, CHAN_WEAPON, S_RegisterSound(
 						soundname), volume, ATTN_NORM, 0.05);
@@ -171,15 +172,15 @@ CL_AddMuzzleFlash(void)
 			dl->color[1] = 1;
 			dl->color[2] = 0;
 			dl->die = cl.time + 0.1;  /* long delay */
-			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%lub.wav",
+			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%db.wav",
 				(randk() % 5) + 1);
 			S_StartSound(NULL, i, CHAN_WEAPON, S_RegisterSound(
 						soundname), volume, ATTN_NORM, 0);
-			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%lub.wav",
+			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%db.wav",
 				(randk() % 5) + 1);
 			S_StartSound(NULL, i, CHAN_WEAPON, S_RegisterSound(
 						soundname), volume, ATTN_NORM, 0.033f);
-			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%lub.wav",
+			Com_sprintf(soundname, sizeof(soundname), "weapons/machgf%db.wav",
 				(randk() % 5) + 1);
 			S_StartSound(NULL, i, CHAN_WEAPON, S_RegisterSound(
 						soundname), volume, ATTN_NORM, 0.066f);
@@ -334,14 +335,15 @@ CL_AddMuzzleFlash2(void)
 
 	if ((ent < 1) || (ent >= MAX_EDICTS))
 	{
-		Com_Error(ERR_DROP, "CL_AddMuzzleFlash2: bad entity");
+		Com_Error(ERR_DROP, "%s: bad entity %d >= %d\n",
+			__func__, ent, MAX_EDICTS);
 	}
 
 	flash_number = MSG_ReadByte(&net_message);
 
 	if (flash_number > 210)
 	{
-		Com_DPrintf("CL_AddMuzzleFlash2: bad offset");
+		Com_DPrintf("%s: bad offset\n", __func__);
 		return;
 	}
 
@@ -1985,8 +1987,6 @@ CL_TeleportParticles(vec3_t org)
  * event value. the female events are there for
  * backwards compatability
  */
-extern struct sfx_s *cl_sfx_footsteps[4];
-
 void
 CL_EntityEvent(entity_state_t *ent)
 {
@@ -2007,7 +2007,7 @@ CL_EntityEvent(entity_state_t *ent)
 			if (cl_footsteps->value)
 			{
 				S_StartSound(NULL, ent->number, CHAN_BODY,
-						cl_sfx_footsteps[randk() & 3], 1, ATTN_NORM, 0);
+						CL_RandomFootstepSfx(), 1, ATTN_NORM, 0);
 			}
 
 			break;

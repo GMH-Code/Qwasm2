@@ -17,7 +17,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+#ifdef USE_SDL3
+#include <SDL3/SDL.h>
+#else
 #include <SDL2/SDL.h>
+#endif
 
 #include "header/local.h"
 
@@ -87,7 +91,7 @@ R_PrintTimes (void)
 
 	ms = r_time2 - r_time1;
 
-	R_Printf(PRINT_ALL,"%5i ms %3i/%3i/%3i poly %3i surf\n",
+	Com_Printf("%5i ms %3i/%3i/%3i poly %3i surf\n",
 				ms, c_faceclip, r_polycount, r_drawnpolycount, c_surf);
 	c_surf = 0;
 }
@@ -113,7 +117,7 @@ R_PrintDSpeeds (void)
 	de_time = (de_time2 - de_time1);
 	ms = (r_time2 - r_time1);
 
-	R_Printf(PRINT_ALL,"%3i %2ip %2iw %2ib %2is %2ie %2ia\n",
+	Com_Printf("%3i %2ip %2iw %2ib %2is %2ie %2ia\n",
 				ms, dp_time, rw_time, db_time, se_time, de_time, da_time);
 }
 
@@ -126,7 +130,7 @@ R_PrintAliasStats
 void
 R_PrintAliasStats (void)
 {
-	R_Printf(PRINT_ALL,"%3i polygon model drawn\n", r_amodels_drawn);
+	Com_Printf("%3i polygon model drawn\n", r_amodels_drawn);
 }
 
 
@@ -338,7 +342,7 @@ R_SetupFrame (void)
 
 		if (!r_worldmodel)
 		{
-			ri.Sys_Error(ERR_DROP, "%s: bad world model", __func__);
+			Com_Error(ERR_DROP, "%s: bad world model", __func__);
 			return;
 		}
 

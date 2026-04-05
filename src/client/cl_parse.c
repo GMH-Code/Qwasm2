@@ -30,9 +30,9 @@
 void CL_DownloadFileName(char *dest, int destlen, char *fn);
 void CL_ParseDownload(void);
 
-int bitcounts[32]; /* just for protocol profiling */
+static int bitcounts[32]; /* just for protocol profiling */
 
-char *svc_strings[256] = {
+static const char *svc_strings[] = {
 	"svc_bad",
 
 	"svc_muzzleflash",
@@ -83,7 +83,7 @@ CL_RegisterSounds(void)
 /*
  * Returns the entity number and the header bits
  */
-int
+static int
 CL_ParseEntityBits(unsigned *bits)
 {
 	unsigned b, total;
@@ -137,8 +137,8 @@ CL_ParseEntityBits(unsigned *bits)
 /*
  * Can go from either a baseline or a previous packet_entity
  */
-void
-CL_ParseDelta(entity_state_t *from, entity_state_t *to, int number, int bits)
+static void
+CL_ParseDelta(const entity_state_t *from, entity_state_t *to, int number, int bits)
 {
 	/* set everything to the state we are delta'ing from */
 	*to = *from;
@@ -275,7 +275,7 @@ CL_ParseDelta(entity_state_t *from, entity_state_t *to, int number, int bits)
  * Parses deltas from the given base and adds the resulting entity to
  * the current frame
  */
-void
+static void
 CL_DeltaEntity(frame_t *frame, int newnum, entity_state_t *old, int bits)
 {
 	centity_t *ent;
@@ -339,13 +339,12 @@ CL_DeltaEntity(frame_t *frame, int newnum, entity_state_t *old, int bits)
  * parsed, deal with the rest of the
  * data stream.
  */
-void
+static void
 CL_ParsePacketEntities(frame_t *oldframe, frame_t *newframe)
 {
 	unsigned int newnum;
 	unsigned bits;
-	entity_state_t
-	*oldstate = NULL;
+	entity_state_t *oldstate = NULL;
 	int oldindex, oldnum;
 
 	newframe->parse_entities = cl.parse_entities;
@@ -380,12 +379,13 @@ CL_ParsePacketEntities(frame_t *oldframe, frame_t *newframe)
 
 		if (newnum >= MAX_EDICTS)
 		{
-			Com_Error(ERR_DROP, "CL_ParsePacketEntities: bad number:%i", newnum);
+			Com_Error(ERR_DROP, "%s: bad entity %d >= %d\n",
+				__func__, newnum, MAX_EDICTS);
 		}
 
 		if (net_message.readcount > net_message.cursize)
 		{
-			Com_Error(ERR_DROP, "CL_ParsePacketEntities: end of message");
+			Com_Error(ERR_DROP, "%s: end of message", __func__);
 		}
 
 		if (!newnum)
@@ -517,13 +517,11 @@ CL_ParsePacketEntities(frame_t *oldframe, frame_t *newframe)
 	}
 }
 
-void
+static void
 CL_ParsePlayerstate(frame_t *oldframe, frame_t *newframe)
 {
-	int flags;
+	int flags, i, statbits;
 	player_state_t *state;
-	int i;
-	int statbits;
 
 	state = &newframe->playerstate;
 
@@ -655,14 +653,16 @@ CL_ParsePlayerstate(frame_t *oldframe, frame_t *newframe)
 	}
 }
 
-void
+static void
 CL_FireEntityEvents(frame_t *frame)
 {
-	entity_state_t *s1;
-	int pnum, num;
+	int pnum;
 
 	for (pnum = 0; pnum < frame->num_entities; pnum++)
 	{
+		entity_state_t *s1;
+		int num;
+
 		num = (frame->parse_entities + pnum) & (MAX_PARSE_ENTITIES - 1);
 		s1 = &cl_parse_entities[num];
 
@@ -678,7 +678,37 @@ CL_FireEntityEvents(frame_t *frame)
 	}
 }
 
-void
+static void
+SHOWNET(const char *s)
+{
+	if (cl_shownet->value >= 2)
+	{
+		Com_Printf("%3i:%s\n", net_message.readcount - 1, s);
+	}
+}
+
+static void
+CL_ShowNetCmd(int cmd)
+{
+	if (cmd < 0)
+	{
+		Com_Error(ERR_DROP, "%3i: unexpected message end",
+			net_message.readcount - 1);
+	}
+
+	if (cl_shownet->value >= 2)
+	{
+		if (cmd >= (sizeof(svc_strings) / sizeof(*svc_strings)))
+		{
+			Com_Printf("%3i:BAD CMD %i\n", net_message.readcount - 1, cmd);
+			return;
+		}
+
+		SHOWNET(svc_strings[cmd]);
+	}
+}
+
+static void
 CL_ParseFrame(void)
 {
 	int cmd;
@@ -757,22 +787,24 @@ CL_ParseFrame(void)
 
 	/* read playerinfo */
 	cmd = MSG_ReadByte(&net_message);
-	SHOWNET(svc_strings[cmd]);
+	CL_ShowNetCmd(cmd);
 
 	if (cmd != svc_playerinfo)
 	{
-		Com_Error(ERR_DROP, "CL_ParseFrame: 0x%X not playerinfo", cmd);
+		Com_Error(ERR_DROP, "%s: 0x%X not playerinfo",
+			__func__, cmd);
 	}
 
 	CL_ParsePlayerstate(old, &cl.frame);
 
 	/* read packet entities */
 	cmd = MSG_ReadByte(&net_message);
-	SHOWNET(svc_strings[cmd]);
+	CL_ShowNetCmd(cmd);
 
 	if (cmd != svc_packetentities)
 	{
-		Com_Error(ERR_DROP, "CL_ParseFrame: 0x%X not packetentities", cmd);
+		Com_Error(ERR_DROP, "%s: 0x%X not packetentities",
+			__func__, cmd);
 	}
 
 	CL_ParsePacketEntities(old, &cl.frame);
@@ -822,7 +854,7 @@ CL_ParseFrame(void)
 	}
 }
 
-void
+static void
 CL_ParseServerData(void)
 {
 	extern cvar_t *fs_gamedirvar;
@@ -890,7 +922,7 @@ CL_ParseServerData(void)
 	}
 }
 
-void
+static void
 CL_ParseBaseline(void)
 {
 	entity_state_t *es;
@@ -944,7 +976,7 @@ CL_LoadClientinfo(clientinfo_t *ci, char *s)
 	else
 	{
 		/* isolate the model name */
-		strcpy(model_name, s);
+		Q_strlcpy(model_name, s, sizeof(model_name));
 		t = strstr(model_name, "/");
 
 		if (!t)
@@ -960,7 +992,7 @@ CL_LoadClientinfo(clientinfo_t *ci, char *s)
 		*t = 0;
 
 		/* isolate the skin name */
-		strcpy(skin_name, s + strlen(model_name) + 1);
+		 Q_strlcpy(skin_name, s + strlen(model_name) + 1, sizeof(skin_name));
 
 		/* model file */
 		Com_sprintf(model_filename, sizeof(model_filename),
@@ -1060,10 +1092,11 @@ CL_ParseClientinfo(int player)
 	CL_LoadClientinfo(ci, s);
 }
 
-void
+static void
 CL_ParseConfigString(void)
 {
-	int i, length;
+	size_t length;
+	int i;
 	char *s;
 	char olds[MAX_QPATH];
 
@@ -1071,7 +1104,7 @@ CL_ParseConfigString(void)
 
 	if ((i < 0) || (i >= MAX_CONFIGSTRINGS))
 	{
-		Com_Error(ERR_DROP, "configstring > MAX_CONFIGSTRINGS");
+		Com_Error(ERR_DROP, "%s: configstring > MAX_CONFIGSTRINGS", __func__);
 	}
 
 	s = MSG_ReadString(&net_message);
@@ -1079,9 +1112,9 @@ CL_ParseConfigString(void)
 	Q_strlcpy(olds, cl.configstrings[i], sizeof(olds));
 
 	length = strlen(s);
-	if (length > sizeof(cl.configstrings) - sizeof(cl.configstrings[0])*i - 1)
+	if (length > sizeof(cl.configstrings) - sizeof(cl.configstrings[0]) * i - 1)
 	{
-		Com_Error(ERR_DROP, "CL_ParseConfigString: oversize configstring");
+		Com_Error(ERR_DROP, "%s: oversize configstring", __func__);
 	}
 
 	strcpy(cl.configstrings[i], s);
@@ -1095,9 +1128,7 @@ CL_ParseConfigString(void)
 	{
 		if (cl.refresh_prepped)
 		{
-			int track = (int)strtol(cl.configstrings[CS_CDTRACK], (char **)NULL, 10);
-
-			OGG_PlayTrack(track, true, true);
+			OGG_PlayTrack(cl.configstrings[CS_CDTRACK], true, true);
 		}
 	}
 	else if ((i >= CS_MODELS) && (i < CS_MODELS + MAX_MODELS))
@@ -1141,7 +1172,7 @@ CL_ParseConfigString(void)
 	}
 }
 
-void
+static void
 CL_ParseStartSoundPacket(void)
 {
 	vec3_t pos_v;
@@ -1155,6 +1186,10 @@ CL_ParseStartSoundPacket(void)
 
 	flags = MSG_ReadByte(&net_message);
 	sound_num = MSG_ReadByte(&net_message);
+	if (sound_num < 0)
+	{
+		Com_Error(ERR_DROP, "%s: unexpected message end", __func__);
+	}
 
 	if (flags & SND_VOLUME)
 	{
@@ -1194,7 +1229,8 @@ CL_ParseStartSoundPacket(void)
 
 		if (ent > MAX_EDICTS)
 		{
-			Com_Error(ERR_DROP, "CL_ParseStartSoundPacket: ent = %i", ent);
+			Com_Error(ERR_DROP, "%s: bad entity %d >= %d\n",
+				__func__, ent, MAX_EDICTS);
 		}
 
 		channel &= 7;
@@ -1218,6 +1254,13 @@ CL_ParseStartSoundPacket(void)
 		pos = NULL;
 	}
 
+	if (sound_num >= MAX_SOUNDS)
+	{
+		Com_Printf("%s: incorrect sound id %d > MAX_SOUNDS\n",
+			__func__, sound_num);
+		return;
+	}
+
 	if (!cl.sound_precache[sound_num])
 	{
 		return;
@@ -1225,15 +1268,6 @@ CL_ParseStartSoundPacket(void)
 
 	S_StartSound(pos, ent, channel, cl.sound_precache[sound_num],
 			volume, attenuation, ofs);
-}
-
-void
-SHOWNET(char *s)
-{
-	if (cl_shownet->value >= 2)
-	{
-		Com_Printf("%3i:%s\n", net_message.readcount - 1, s);
-	}
 }
 
 void
@@ -1259,7 +1293,7 @@ CL_ParseServerMessage(void)
 	{
 		if (net_message.readcount > net_message.cursize)
 		{
-			Com_Error(ERR_DROP, "CL_ParseServerMessage: Bad server message");
+			Com_Error(ERR_DROP, "%s: Bad server message", __func__);
 			break;
 		}
 
@@ -1271,24 +1305,14 @@ CL_ParseServerMessage(void)
 			break;
 		}
 
-		if (cl_shownet->value >= 2)
-		{
-			if (!svc_strings[cmd])
-			{
-				Com_Printf("%3i:BAD CMD %i\n", net_message.readcount - 1, cmd);
-			}
-
-			else
-			{
-				SHOWNET(svc_strings[cmd]);
-			}
-		}
+		CL_ShowNetCmd(cmd);
 
 		/* other commands */
 		switch (cmd)
 		{
 			default:
-				Com_Error(ERR_DROP, "CL_ParseServerMessage: Illegible server message\n");
+				Com_Error(ERR_DROP, "%s: Illegible server message\n",
+					__func__);
 				break;
 
 			case svc_nop:

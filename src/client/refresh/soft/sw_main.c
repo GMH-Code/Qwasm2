@@ -18,12 +18,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
-// sw_main.c
-#include <stdint.h>
 #include <limits.h>
 
+#ifdef USE_SDL3
+#include <SDL3/SDL.h>
+#else
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_video.h>
+#endif
 
 #include "header/local.h"
 
@@ -32,7 +34,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAXALIASVERTS		2048
 #define MAXLIGHTS		1024 // allow some very large lightmaps
 
-viddef_t	vid;
 pixel_t		*vid_buffer = NULL;
 static pixel_t	*swap_buffers = NULL;
 static pixel_t	*swap_frames[2] = {NULL, NULL};
@@ -43,7 +44,8 @@ pixel_t		*vid_alphamap = NULL;
 light_t		vid_lightthreshold = 0;
 static int	vid_minu, vid_minv, vid_maxu, vid_maxv;
 static int	vid_zminu, vid_zminv, vid_zmaxu, vid_zmaxv;
-static qboolean IsHighDPIaware;
+static qboolean IsHighDPIaware = false;
+static qboolean texture_high_color = false;
 
 // last position  on map
 static vec3_t	lastvieworg;
@@ -57,19 +59,16 @@ byte		d_8to24table[256 * 4];
 
 vec3_t		skyaxis;
 
-refdef_t	r_newrefdef;
-
 model_t		*r_worldmodel;
 
 pixel_t		*r_warpbuffer;
 
 typedef struct swstate_s
 {
-	qboolean	fullscreen;
-	int		prev_mode; // last valid SW mode
+	int prev_mode; /* last valid SW mode */
 
-	unsigned char	gammatable[256];
-	unsigned char	currentpalette[1024];
+	unsigned char gammatable[256];
+	unsigned char currentpalette[1024];
 } swstate_t;
 
 static swstate_t sw_state;
@@ -213,9 +212,8 @@ int		cachewidth;
 pixel_t		*d_viewbuffer;
 zvalue_t	*d_pzbuffer;
 
-static void RE_BeginFrame( float camera_separation );
+static void RE_BeginFrame(float camera_separation);
 static void Draw_BuildGammaTable(void);
-static void RE_FlushFrame(int vmin, int vmax);
 static void RE_CleanFrame(void);
 static void RE_EndFrame(void);
 static void R_DrawBeam(const entity_t *e);
@@ -322,6 +320,9 @@ VID_DamageBuffer(int u, int v)
 	{
 		vid_maxv = v;
 	}
+
+	/* Should copy internal buffer */
+	texture_high_color = false;
 }
 
 // clean damage state
@@ -389,7 +390,7 @@ R_RegisterVariables (void)
 	// On MacOS texture is cleaned up after render and code have to copy a whole
 	// screen to texture, other platforms save previous texture content and can be
 	// copied only changed parts
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(USE_SDL3)
 	sw_partialrefresh = ri.Cvar_Get("sw_partialrefresh", "0", CVAR_ARCHIVE);
 #else
 	sw_partialrefresh = ri.Cvar_Get("sw_partialrefresh", "1", CVAR_ARCHIVE);
@@ -480,14 +481,14 @@ RE_Init(void)
 	/* create the window and set up the context */
 	if (!RE_SetMode())
 	{
-		R_Printf(PRINT_ALL, "%s() could not R_SetMode()\n", __func__);
+		Com_Printf("%s() could not R_SetMode()\n", __func__);
 		return false;
 	}
 
 	// create the window
 	ri.Vid_MenuInit();
 
-	R_Printf(PRINT_ALL, "ref_soft version: "REF_VERSION"\n");
+	Com_Printf("ref_soft version: "REF_VERSION"\n");
 
 	return true;
 }
@@ -551,7 +552,7 @@ R_ReallocateMapBuffers (void)
 {
 	if (!r_cnumsurfs || r_outofsurfaces)
 	{
-		if(lsurfs)
+		if (lsurfs)
 		{
 			free(lsurfs);
 		}
@@ -571,14 +572,14 @@ R_ReallocateMapBuffers (void)
 		if (r_cnumsurfs > SURFINDEX_MAX)
 		{
 			r_cnumsurfs = SURFINDEX_MAX;
-			R_Printf(PRINT_ALL, "%s: Code has limitation to surfaces count.\n",
+			Com_Printf("%s: Code has limitation to surfaces count.\n",
 				 __func__);
 		}
 
 		lsurfs = malloc (r_cnumsurfs * sizeof(surf_t));
 		if (!lsurfs)
 		{
-			R_Printf(PRINT_ALL, "%s: Couldn't malloc %d bytes\n",
+			Com_Printf("%s: Couldn't malloc %d bytes\n",
 				 __func__, (int)(r_cnumsurfs * sizeof(surf_t)));
 			return;
 		}
@@ -598,10 +599,7 @@ R_ReallocateMapBuffers (void)
 
 	if (!r_numallocatedlights || r_outoflights)
 	{
-		if (!blocklights)
-		{
-			free(blocklights);
-		}
+		free(blocklights);
 
 		if (r_outoflights)
 		{
@@ -615,7 +613,7 @@ R_ReallocateMapBuffers (void)
 		blocklights = malloc (r_numallocatedlights * sizeof(light_t));
 		if (!blocklights)
 		{
-			R_Printf(PRINT_ALL, "%s: Couldn't malloc %d bytes\n",
+			Com_Printf("%s: Couldn't malloc %d bytes\n",
 				 __func__, (int)(r_numallocatedlights * sizeof(light_t)));
 			return;
 		}
@@ -628,10 +626,7 @@ R_ReallocateMapBuffers (void)
 
 	if (!r_numallocatededges || r_outofedges)
 	{
-		if (!r_edges)
-		{
-			free(r_edges);
-		}
+		free(r_edges);
 
 		if (r_outofedges)
 		{
@@ -647,7 +642,7 @@ R_ReallocateMapBuffers (void)
 		r_edges = malloc (r_numallocatededges * sizeof(edge_t));
 		if (!r_edges)
 		{
-			R_Printf(PRINT_ALL, "%s: Couldn't malloc %d bytes\n",
+			Com_Printf("%s: Couldn't malloc %d bytes\n",
 				 __func__, (int)(r_numallocatededges * sizeof(edge_t)));
 			return;
 		}
@@ -678,7 +673,7 @@ R_ReallocateMapBuffers (void)
 		finalverts = malloc(r_numallocatedverts * sizeof(finalvert_t));
 		if (!finalverts)
 		{
-			R_Printf(PRINT_ALL, "%s: Couldn't malloc %d bytes\n",
+			Com_Printf("%s: Couldn't malloc %d bytes\n",
 				 __func__, (int)(r_numallocatedverts * sizeof(finalvert_t)));
 			return;
 		}
@@ -700,19 +695,22 @@ R_ReallocateMapBuffers (void)
 			r_outoftriangles = false;
 		}
 
-		if (r_numallocatedtriangles < vid.height)
-			r_numallocatedtriangles = vid.height;
+		// one more for the terminator
+		if (r_numallocatedtriangles < vid.height + 1)
+		{
+			r_numallocatedtriangles = vid.height + 1;
+		}
 
 		triangle_spans  = malloc(r_numallocatedtriangles * sizeof(spanpackage_t));
 		if (!triangle_spans)
 		{
-			R_Printf(PRINT_ALL, "%s: Couldn't malloc %d bytes\n",
+			Com_Printf("%s: Couldn't malloc %d bytes\n",
 				 __func__, (int)(r_numallocatedtriangles * sizeof(spanpackage_t)));
 			return;
 		}
 		triangles_max = &triangle_spans[r_numallocatedtriangles];
 
-		R_Printf(PRINT_DEVELOPER, "Allocated %d triangles.\n", r_numallocatedtriangles);
+		R_Printf(PRINT_DEVELOPER, "Allocated %d triangle spans.\n", r_numallocatedtriangles);
 	}
 
 	if (!r_numallocatededgebasespans || r_outedgebasespans)
@@ -735,7 +733,7 @@ R_ReallocateMapBuffers (void)
 		edge_basespans  = malloc(r_numallocatededgebasespans * sizeof(espan_t));
 		if (!edge_basespans)
 		{
-			R_Printf(PRINT_ALL, "%s: Couldn't malloc %d bytes\n",
+			Com_Printf("%s: Couldn't malloc %d bytes\n",
 				 __func__, (int)(r_numallocatededgebasespans * sizeof(espan_t)));
 			return;
 		}
@@ -824,21 +822,23 @@ R_DrawEntitiesOnList
 static void
 R_DrawEntitiesOnList (void)
 {
-	int			i;
-	qboolean	translucent_entities = false;
+	qboolean translucent_entities = false;
+	int i;
 
 	if (!r_drawentities->value)
+	{
 		return;
+	}
 
 	// all bmodels have already been drawn by the edge list
-	for (i=0 ; i<r_newrefdef.num_entities ; i++)
+	for (i = 0; i < r_newrefdef.num_entities; i++)
 	{
 		entity_t *currententity = &r_newrefdef.entities[i];
 
-		if ( currententity->flags & RF_TRANSLUCENT )
+		if (currententity->flags & RF_TRANSLUCENT)
 		{
 			translucent_entities = true;
-			continue;
+			continue; /* not solid */
 		}
 
 		if ( currententity->flags & RF_BEAM )
@@ -867,31 +867,35 @@ R_DrawEntitiesOnList (void)
 				break;
 
 			case mod_alias:
-				R_AliasDrawModel(currententity, currentmodel);
+				R_DrawAliasModel(currententity, currentmodel);
 				break;
 
 			case mod_brush:
 				break;
 
 			default:
-				R_Printf(PRINT_ALL, "%s: Bad modeltype %d\n",
+				Com_Printf("%s: Bad modeltype %d\n",
 					__func__, currentmodel->type);
 				return;
 			}
 		}
 	}
 
-	if ( !translucent_entities )
+	if (!translucent_entities)
+	{
 		return;
+	}
 
-	for (i=0 ; i<r_newrefdef.num_entities ; i++)
+	for (i = 0; i < r_newrefdef.num_entities; i++)
 	{
 		entity_t *currententity = &r_newrefdef.entities[i];
 
-		if ( !( currententity->flags & RF_TRANSLUCENT ) )
-			continue;
+		if (!(currententity->flags & RF_TRANSLUCENT))
+		{
+			continue; /* solid */
+		}
 
-		if ( currententity->flags & RF_BEAM )
+		if (currententity->flags & RF_BEAM)
 		{
 			modelorg[0] = -r_origin[0];
 			modelorg[1] = -r_origin[1];
@@ -917,14 +921,14 @@ R_DrawEntitiesOnList (void)
 				break;
 
 			case mod_alias:
-				R_AliasDrawModel(currententity, currentmodel);
+				R_DrawAliasModel(currententity, currentmodel);
 				break;
 
 			case mod_brush:
 				break;
 
 			default:
-				R_Printf(PRINT_ALL, "%s: Bad modeltype %d\n",
+				Com_Printf("%s: Bad modeltype %d\n",
 					__func__, currentmodel->type);
 				return;
 			}
@@ -939,7 +943,7 @@ R_BmodelCheckBBox
 =============
 */
 static int
-R_BmodelCheckBBox (const float *minmaxs)
+R_BmodelCheckBBox(const float *minmaxs)
 {
 	int i, clipflags;
 
@@ -948,7 +952,7 @@ R_BmodelCheckBBox (const float *minmaxs)
 	for (i=0 ; i<4 ; i++)
 	{
 		vec3_t acceptpt, rejectpt;
-		int *pindex;
+		const int *pindex;
 		float d;
 
 		// generate accept and reject points
@@ -997,7 +1001,7 @@ R_FindTopnode (vec3_t mins, vec3_t maxs)
 
 	while (1)
 	{
-		cplane_t *splitplane;
+		const cplane_t *splitplane;
 		int sides;
 
 		if (node->visframe != r_visframecount)
@@ -1106,7 +1110,7 @@ R_DrawBEntitiesOnList (void)
 
 	VectorCopy (modelorg, oldorigin);
 
-	for (i=0 ; i<r_newrefdef.num_entities ; i++)
+	for (i = 0; i < r_newrefdef.num_entities; i++)
 	{
 		entity_t *currententity = &r_newrefdef.entities[i];
 		const model_t *currentmodel = currententity->model;
@@ -1142,7 +1146,7 @@ R_DrawBEntitiesOnList (void)
 		R_RotateBmodel(currententity);
 
 		// calculate dynamic lighting for bmodel
-		R_PushDlights (currentmodel);
+		R_PushDlights(currentmodel);
 
 		if (topnode->contents == CONTENTS_NODE)
 		{
@@ -1202,7 +1206,7 @@ R_EdgeDrawing (entity_t *currententity)
 		db_time1 = rw_time2;
 	}
 
-	R_DrawBEntitiesOnList ();
+	R_DrawBEntitiesOnList();
 
 	if (r_dspeeds->value)
 	{
@@ -1277,9 +1281,9 @@ R_CalcPalette (void)
 //=======================================================================
 
 static void
-R_SetLightLevel (const entity_t *currententity)
+R_SetLightLevel(const entity_t *currententity)
 {
-	vec3_t		light;
+	vec3_t shadelight = {0};
 
 	if ((r_newrefdef.rdflags & RDF_NOWORLDMODEL) || (!r_drawentities->value) || (!currententity))
 	{
@@ -1287,9 +1291,33 @@ R_SetLightLevel (const entity_t *currententity)
 		return;
 	}
 
-	// save off light value for server to look at (BIG HACK!)
-	R_LightPoint (currententity, r_newrefdef.vieworg, light);
-	r_lightlevel->value = 150.0 * light[0];
+	/* save off light value for server to look at (BIG HACK!) */
+	R_LightPoint(currententity, r_newrefdef.vieworg, shadelight);
+
+	/* pick the greatest component, which should be the
+	 * same as the mono value returned by before color light apply */
+	if (shadelight[0] > shadelight[1])
+	{
+		if (shadelight[0] > shadelight[2])
+		{
+			r_lightlevel->value = 150 * shadelight[0];
+		}
+		else
+		{
+			r_lightlevel->value = 150 * shadelight[2];
+		}
+	}
+	else
+	{
+		if (shadelight[1] > shadelight[2])
+		{
+			r_lightlevel->value = 150 * shadelight[1];
+		}
+		else
+		{
+			r_lightlevel->value = 150 * shadelight[2];
+		}
+	}
 }
 
 static int
@@ -1313,14 +1341,14 @@ RE_RenderFrame
 ================
 */
 static void
-RE_RenderFrame (refdef_t *fd)
+RE_RenderFrame(refdef_t *fd)
 {
 	r_newrefdef = *fd;
 	entity_t	ent;
 
 	if (!r_worldmodel && !( r_newrefdef.rdflags & RDF_NOWORLDMODEL ) )
 	{
-		ri.Sys_Error(ERR_FATAL, "%s: NULL worldmodel", __func__);
+		Com_Error(ERR_FATAL, "%s: NULL worldmodel", __func__);
 	}
 
 	// Need to rerender whole frame
@@ -1332,7 +1360,7 @@ RE_RenderFrame (refdef_t *fd)
 	// compare current position with old
 	if (vid_buffer_width <= 640 ||
 	    !VectorCompareRound(fd->vieworg, lastvieworg) ||
-	    !VectorCompare(fd->viewangles, lastviewangles))
+	    !VectorCompareRound(fd->viewangles, lastviewangles))
 	{
 		fastmoving = true;
 	}
@@ -1355,10 +1383,10 @@ RE_RenderFrame (refdef_t *fd)
 
 	// Using the current view cluster (r_viewcluster), retrieve and decompress
 	// the PVS (Potentially Visible Set)
-	R_MarkLeaves ();	// done here so we know if we're in water
+	R_MarkLeaves();	// done here so we know if we're in water
 
 	// For each dlight_t* passed via r_newrefdef.dlights, mark polygons affected by a light.
-	R_PushDlights (r_worldmodel);
+	R_PushDlights(r_worldmodel);
 
 	// TODO: rearrange code same as in GL*_DrawWorld?
 	/* auto cycle the world frame for texture animation */
@@ -1387,7 +1415,7 @@ RE_RenderFrame (refdef_t *fd)
 	}
 	// Draw enemies, barrel etc...
 	// Use Z-Buffer mostly in read mode only.
-	R_DrawEntitiesOnList ();
+	R_DrawEntitiesOnList();
 
 	if (r_dspeeds->value)
 	{
@@ -1396,19 +1424,23 @@ RE_RenderFrame (refdef_t *fd)
 	}
 
 	// Duh !
-	R_DrawParticles ();
+	R_DrawParticles();
 
 	if (r_dspeeds->value)
+	{
 		dp_time2 = SDL_GetTicks();
+	}
 
 	// Perform pixel palette blending ia the pics/colormap.pcx lower part lookup table.
 	R_DrawAlphaSurfaces(&ent);
 
 	// Save off light value for server to look at (BIG HACK!)
-	R_SetLightLevel (&ent);
+	R_SetLightLevel(&ent);
 
 	if (r_dowarp)
+	{
 		D_WarpScreen ();
+	}
 
 	if (r_dspeeds->value)
 	{
@@ -1420,13 +1452,19 @@ RE_RenderFrame (refdef_t *fd)
 	R_CalcPalette ();
 
 	if (sw_aliasstats->value)
-		R_PrintAliasStats ();
+	{
+		R_PrintAliasStats();
+	}
 
 	if (r_speeds->value)
-		R_PrintTimes ();
+	{
+		R_PrintTimes();
+	}
 
 	if (r_dspeeds->value)
-		R_PrintDSpeeds ();
+	{
+		R_PrintDSpeeds();
+	}
 
 	R_ReallocateMapBuffers();
 }
@@ -1465,12 +1503,14 @@ static rserr_t	SWimp_SetMode(int *pwidth, int *pheight, int mode, int fullscreen
 ** RE_BeginFrame
 */
 static void
-RE_BeginFrame( float camera_separation )
+RE_BeginFrame(float camera_separation)
 {
-	// pallete without changes
+	/* pallete without changes */
 	palette_changed = false;
-	// run without speed optimization
+	/* run without speed optimization */
 	fastmoving = false;
+	/* texture could redraw */
+	texture_high_color = false;
 
 	while (r_vsync->modified)
 	{
@@ -1533,9 +1573,9 @@ RE_SetMode(void)
 	{
 		if (err == rserr_invalid_mode)
 		{
-			R_Printf(PRINT_ALL, "%s() - invalid mode\n", __func__);
+			Com_Printf("%s() - invalid mode\n", __func__);
 
-			if(r_mode->value == sw_state.prev_mode)
+			if (r_mode->value == sw_state.prev_mode)
 			{
 				// trying again would result in a crash anyway, give up already
 				// (this would happen if your initing fails at all and your resolution already was 640x480)
@@ -1549,7 +1589,7 @@ RE_SetMode(void)
 		/* try setting it back to something safe */
 		if (SWimp_SetMode(&vid.width, &vid.height, sw_state.prev_mode, 0) != rserr_ok)
 		{
-			R_Printf(PRINT_ALL, "%s() - could not revert to safe mode\n", __func__);
+			Com_Printf("%s() - could not revert to safe mode\n", __func__);
 			return false;
 		}
 	}
@@ -1568,15 +1608,15 @@ R_GammaCorrectAndSetPalette( const unsigned char *palette )
 	// Replace palette
 	for ( i = 0; i < 256; i++ )
 	{
-		if (sw_state.currentpalette[i*4+0] != sw_state.gammatable[palette[i*4+2]] ||
-			sw_state.currentpalette[i*4+1] != sw_state.gammatable[palette[i*4+1]] ||
-			sw_state.currentpalette[i*4+2] != sw_state.gammatable[palette[i*4+0]])
+		if (sw_state.currentpalette[i * 4 + 0] != sw_state.gammatable[palette[i * 4 + 2]] ||
+			sw_state.currentpalette[i * 4 + 1] != sw_state.gammatable[palette[i * 4 + 1]] ||
+			sw_state.currentpalette[i * 4 + 2] != sw_state.gammatable[palette[i * 4 + 0]])
 		{
-			sw_state.currentpalette[i*4+0] = sw_state.gammatable[palette[i*4+2]]; // blue
-			sw_state.currentpalette[i*4+1] = sw_state.gammatable[palette[i*4+1]]; // green
-			sw_state.currentpalette[i*4+2] = sw_state.gammatable[palette[i*4+0]]; // red
+			sw_state.currentpalette[i * 4 + 0] = sw_state.gammatable[palette[i * 4 + 2]]; // blue
+			sw_state.currentpalette[i * 4 + 1] = sw_state.gammatable[palette[i * 4 + 1]]; // green
+			sw_state.currentpalette[i * 4 + 2] = sw_state.gammatable[palette[i * 4 + 0]]; // red
 
-			sw_state.currentpalette[i*4+3] = 0xFF; // alpha
+			sw_state.currentpalette[i * 4 + 3] = 255; // alpha
 			palette_changed = true;
 		}
 	}
@@ -1626,10 +1666,10 @@ Draw_BuildGammaTable (void)
 
 	overbright = sw_overbrightbits->value;
 
-	if(overbright < 0.5)
+	if (overbright < 0.5)
 		overbright = 0.5;
 
-	if(overbright > 4.0)
+	if (overbright > 4.0)
 		overbright = 4.0;
 
 	g = (2.1 - vid_gamma->value);
@@ -1718,6 +1758,24 @@ R_DrawBeam(const entity_t *e)
 //===================================================================
 
 /*
+ * FIXME: The following functions implement the render backend
+ * through SDL renderer. Only small parts belong here, refresh.c
+ * (at client side) needs to grow support funtions for software
+ * renderers and the renderer must use them. What's left here
+ * should be moved to a new file sw_sdl.c.
+ *
+ * Very, very problematic is at least the SDL initalization and
+ * window creation in this code. That is guaranteed to clash with
+ * the GL renderers (when switching GL -> Soft or the other way
+ * round) and works only by pure luck. And only as long as there
+ * is only one software renderer.
+ */
+
+static SDL_Window	*window = NULL;
+static SDL_Texture	*texture = NULL;
+static SDL_Renderer	*renderer = NULL;
+
+/*
 ============
 RE_SetSky
 ============
@@ -1728,7 +1786,7 @@ static const int	r_skysideimage[6] = {5, 2, 4, 1, 0, 3};
 extern mtexinfo_t		r_skytexinfo[6];
 
 static void
-RE_SetSky (char *name, float rotate, vec3_t axis)
+RE_SetSky (const char *name, float rotate, vec3_t axis)
 {
 	char	skyname[MAX_QPATH];
 	int		i;
@@ -1745,7 +1803,7 @@ RE_SetSky (char *name, float rotate, vec3_t axis)
 
 		if (!image)
 		{
-			R_Printf(PRINT_ALL, "%s: can't load %s:%s sky\n",
+			Com_Printf("%s: can't load %s:%s sky\n",
 				__func__, skyname, suf[r_skysideimage[i]]);
 			image = r_notexture_mip;
 		}
@@ -1760,17 +1818,9 @@ RE_RegisterSkin
 ===============
 */
 static struct image_s *
-RE_RegisterSkin (char *name)
+RE_RegisterSkin (const char *name)
 {
 	return R_FindImage (name, it_skin);
-}
-
-void R_Printf(int level, const char* msg, ...)
-{
-	va_list argptr;
-	va_start(argptr, msg);
-	ri.Com_VPrintf(level, msg, argptr);
-	va_end(argptr);
 }
 
 static qboolean
@@ -1788,8 +1838,7 @@ RE_IsVsyncActive(void)
 
 static int RE_PrepareForWindow(void)
 {
-	int flags = SDL_SWSURFACE;
-	return flags;
+	return 0;
 }
 
 /*
@@ -1801,6 +1850,71 @@ static qboolean
 RE_EndWorldRenderpass( void )
 {
 	return true;
+}
+
+static void
+RE_Draw_StretchRawColor(int x, int y, int w, int h, int cols, int rows,
+	const byte *data, int bits)
+{
+	int pitch, i;
+	Uint32 *pixels;
+
+	if (!cols || !rows || !data)
+	{
+		return;
+	}
+
+	/* Copy to original buffers */
+	RE_Draw_StretchRaw(x, y, w, h, cols, rows, data, bits);
+
+	if (bits != 32 || x || y ||
+		(w != vid_buffer_width) ||
+		(h != vid_buffer_height) ||
+		(cols != vid_buffer_width) ||
+		(rows != vid_buffer_height))
+	{
+		return;
+	}
+
+	/* Full screen update should be faster */
+#ifdef USE_SDL3
+	if (!SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch))
+#else
+	if (SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch))
+#endif
+	{
+		Com_Printf("Can't lock texture: %s\n", SDL_GetError());
+		return;
+	}
+
+	if ((pitch / sizeof(Uint32)) != vid_buffer_width)
+	{
+		SDL_UnlockTexture(texture);
+		Com_Printf("Different pitch in texture %d != %d\n",
+			pitch, vid_buffer_width);
+		return;
+	}
+
+	for (i = 0; i < vid_buffer_width * vid_buffer_height; i ++)
+	{
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+		/* SDL_PIXELFORMAT_BGRA8888 */
+		((byte*)pixels)[i * 4 + 0] = 255;
+		((byte*)pixels)[i * 4 + 1] = data[i * 4 + 0]; /* Red */
+		((byte*)pixels)[i * 4 + 2] = data[i * 4 + 1]; /* Green */
+		((byte*)pixels)[i * 4 + 3] = data[i * 4 + 2]; /* Blue */
+#else
+		/* SDL_PIXELFORMAT_ARGB8888 */
+		((byte*)pixels)[i * 4 + 0] = data[i * 4 + 2]; /* Blue */
+		((byte*)pixels)[i * 4 + 1] = data[i * 4 + 1]; /* Green */
+		((byte*)pixels)[i * 4 + 2] = data[i * 4 + 0]; /* Red */
+		((byte*)pixels)[i * 4 + 3] = 255;
+#endif
+	}
+
+	SDL_UnlockTexture(texture);
+
+	texture_high_color = true;
 }
 
 /*
@@ -1815,10 +1929,20 @@ GetRefAPI(refimport_t imp)
 	// used different variable name for prevent confusion and cppcheck warnings
 	refexport_t	refexport;
 
+	// Need to communicate the SDL major version to the client.
+#ifdef USE_SDL3
+	int version = SDL_VERSIONNUM_MAJOR(SDL_GetVersion());
+#else
+	SDL_version ver;
+	SDL_VERSION(&ver);
+	int version = ver.major;
+#endif
+
 	memset(&refexport, 0, sizeof(refexport_t));
 	ri = imp;
 
 	refexport.api_version = API_VERSION;
+	refexport.framework_version = version;
 
 	refexport.BeginRegistration = RE_BeginRegistration;
 	refexport.RegisterModel = RE_RegisterModel;
@@ -1838,7 +1962,7 @@ GetRefAPI(refimport_t imp)
 	refexport.DrawFill = RE_Draw_Fill;
 	refexport.DrawFadeScreen = RE_Draw_FadeScreen;
 
-	refexport.DrawStretchRaw = RE_Draw_StretchRaw;
+	refexport.DrawStretchRaw = RE_Draw_StretchRawColor;
 
 	refexport.Init = RE_Init;
 	refexport.IsVSyncActive = RE_IsVsyncActive;
@@ -1853,32 +1977,14 @@ GetRefAPI(refimport_t imp)
 	refexport.EndWorldRenderpass = RE_EndWorldRenderpass;
 	refexport.EndFrame = RE_EndFrame;
 
-    // Tell the client that we're unsing the
+	// Tell the client that we're unsing the
 	// new renderer restart API.
-    ri.Vid_RequestRestart(RESTART_NO);
+	ri.Vid_RequestRestart(RESTART_NO);
 
 	Swap_Init ();
 
 	return refexport;
 }
-
-/*
- * FIXME: The following functions implement the render backend
- * through SDL renderer. Only small parts belong here, refresh.c
- * (at client side) needs to grow support funtions for software
- * renderers and the renderer must use them. What's left here
- * should be moved to a new file sw_sdl.c.
- *
- * Very, very problematic is at least the SDL initalization and
- * window creation in this code. That is guaranteed to clash with
- * the GL renderers (when switching GL -> Soft or the other way
- * round) and works only by pure luck. And only as long as there
- * is only one software renderer.
- */
-
-static SDL_Window	*window = NULL;
-static SDL_Texture	*texture = NULL;
-static SDL_Renderer	*renderer = NULL;
 
 int vid_buffer_height = 0;
 int vid_buffer_width = 0;
@@ -1888,9 +1994,9 @@ RE_InitContext(void *win)
 {
 	char title[40] = {0};
 
-	if(win == NULL)
+	if (win == NULL)
 	{
-		ri.Sys_Error(ERR_FATAL, "%s() must not be called with NULL argument!", __func__);
+		Com_Error(ERR_FATAL, "%s() must not be called with NULL argument!", __func__);
 		return false;
 	}
 
@@ -1908,11 +2014,34 @@ RE_InitContext(void *win)
 #else
 	if (r_vsync->value)
 	{
+#ifdef USE_SDL3
+		renderer = SDL_CreateRenderer(window, NULL);
+		SDL_SetRenderVSync(renderer, 1);
+#else
 		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+		if (!renderer)
+		{
+			renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE | SDL_RENDERER_PRESENTVSYNC);
+		}
+#endif
 	}
 	else
 	{
+#ifdef USE_SDL3
+		renderer = SDL_CreateRenderer(window, NULL);
+#else
 		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+		if (!renderer)
+		{
+			renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+		}
+#endif
+	}
+
+	if (!renderer)
+	{
+		Com_Printf("Can't create renderer: %s\n", SDL_GetError());
+		return false;
 	}
 #endif
 
@@ -1929,7 +2058,11 @@ RE_InitContext(void *win)
 #if SDL_VERSION_ATLEAST(2, 26, 0)
 	// Figure out if we are high dpi aware.
 	int flags = SDL_GetWindowFlags(win);
+#ifdef USE_SDL3
+	IsHighDPIaware = (flags & SDL_WINDOW_HIGH_PIXEL_DENSITY) ? true : false;
+#else
 	IsHighDPIaware = (flags & SDL_WINDOW_ALLOW_HIGHDPI) ? true : false;
+#endif
 #endif
 
 	/* We can't rely on vid, because the context is created
@@ -1945,6 +2078,7 @@ RE_InitContext(void *win)
 		vid_buffer_width = vid.width;
 	}
 
+	/* just buffer for 8bit -> 32bit covert and render */
 	texture = SDL_CreateTexture(renderer,
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
 				    SDL_PIXELFORMAT_BGRA8888,
@@ -1953,6 +2087,12 @@ RE_InitContext(void *win)
 #endif
 				    SDL_TEXTUREACCESS_STREAMING,
 				    vid_buffer_width, vid_buffer_height);
+
+	if (!texture)
+	{
+		Com_Printf("Can't create texture: %s\n", SDL_GetError());
+		return false;
+	}
 
 	R_InitGraphics(vid_buffer_width, vid_buffer_height);
 	SWimp_CreateRender(vid_buffer_width, vid_buffer_height);
@@ -1965,7 +2105,11 @@ RE_InitContext(void *win)
  */
 void RE_GetDrawableSize(int* width, int* height)
 {
+#ifdef USE_SDL3
+	SDL_GetCurrentRenderOutputSize(renderer, width, height);
+#else
 	SDL_GetRendererOutputSize(renderer, width, height);
+#endif
 }
 
 
@@ -1976,6 +2120,7 @@ RE_ShutdownContext(void)
 	{
 		free(swap_buffers);
 	}
+
 	swap_buffers = NULL;
 	vid_buffer = NULL;
 	swap_frames[0] = NULL;
@@ -2047,25 +2192,25 @@ RE_ShutdownContext(void)
 	}
 	finalverts = NULL;
 
-	if(blocklights)
+	if (blocklights)
 	{
 		free(blocklights);
 	}
 	blocklights = NULL;
 
-	if(r_edges)
+	if (r_edges)
 	{
 		free(r_edges);
 	}
 	r_edges = NULL;
 
-	if(lsurfs)
+	if (lsurfs)
 	{
 		free(lsurfs);
 	}
 	lsurfs = NULL;
 
-	if(r_warpbuffer)
+	if (r_warpbuffer)
 	{
 		free(r_warpbuffer);
 	}
@@ -2091,54 +2236,65 @@ point math used in R_ScanEdges() overflows at width 2048 !!
 char shift_size;
 
 static void
-RE_CopyFrame (Uint32 * pixels, int pitch, int vmin, int vmax)
+RE_CopyFrame(Uint32 *pixels, int pitch, SDL_Rect *rect)
 {
-	Uint32 *sdl_palette = (Uint32 *)sw_state.currentpalette;
+	const unsigned *sdl_palette;
 
-	// no gaps between images rows
+	sdl_palette = (unsigned *)sw_state.currentpalette;
+
+	/* no gaps between images rows */
 	if (pitch == vid_buffer_width)
 	{
-		const Uint32	*max_pixels;
-		Uint32	*pixels_pos;
-		pixel_t	*buffer_pos;
+		const byte *src_max;
+		Uint32 *dst;
+		byte *src;
 
-		max_pixels = pixels + vmax;
-		buffer_pos = vid_buffer + vmin;
+		dst = pixels;
+		src = vid_buffer + rect->y * vid_buffer_width;
+		src_max = src + rect->h * vid_buffer_width;
 
-		pixels_pos = pixels + vmin;
-
-		while ( pixels_pos < max_pixels)
+		while (src < src_max)
 		{
-			*pixels_pos = sdl_palette[*buffer_pos];
-			buffer_pos++;
-			pixels_pos++;
+			*dst = sdl_palette[*src];
+
+			src++;
+			dst++;
 		}
 	}
 	else
 	{
-		int y,x, buffer_pos, ymin, ymax;
+		int y, buffer_pos;
+		Uint32 *dst;
 
-		ymin = vmin / vid_buffer_width;
-		ymax = vmax / vid_buffer_width;
+		buffer_pos = rect->y * vid_buffer_width;
+		dst = pixels;
 
-		buffer_pos = ymin * vid_buffer_width;
-		pixels += ymin * pitch;
-		for (y=ymin; y < ymax;  y++)
+		for (y = rect->y; y < rect->y + rect->h; y++)
 		{
-			for (x=0; x < vid_buffer_width; x ++)
+			int x;
+
+			for (x = 0; x < vid_buffer_width; x++)
 			{
-				pixels[x] = sdl_palette[vid_buffer[buffer_pos + x]];
+				dst[x] = sdl_palette[vid_buffer[buffer_pos]];
+				buffer_pos ++;
 			}
-			pixels += pitch;
-			buffer_pos += vid_buffer_width;
+
+			dst += pitch;
 		}
+	}
+
+	if ((sw_anisotropic->value > 0) && !fastmoving)
+	{
+		SmoothColorImage((unsigned *)pixels, rect->h * vid_buffer_width,
+			sw_anisotropic->value);
 	}
 }
 
 static int
 RE_BufferDifferenceStart(int vmin, int vmax)
 {
-	int *front_buffer, *back_buffer, *back_max;
+	int *front_buffer, *back_buffer;
+	const int *back_max;
 
 	back_buffer = (int*)(swap_frames[0] + vmin);
 	front_buffer = (int*)(swap_frames[1] + vmin);
@@ -2151,20 +2307,24 @@ RE_BufferDifferenceStart(int vmin, int vmax)
 	return (pixel_t*)back_buffer - swap_frames[0];
 }
 
-static int
+static size_t
 RE_BufferDifferenceEnd(int vmin, int vmax)
 {
-	int *front_buffer, *back_buffer, *back_min;
+	int *front_buffer, *back_buffer;
+	const int *back_min;
 
 	back_buffer = (int*)(swap_frames[0] + vmax);
 	front_buffer = (int*)(swap_frames[1] + vmax);
 	back_min = (int*)(swap_frames[0] + vmin);
 
-	do {
+	do
+	{
 		back_buffer --;
 		front_buffer --;
-	} while (back_buffer > back_min && *back_buffer == *front_buffer);
-	// +1 for fully cover changes
+	}
+	while (back_buffer > back_min && *back_buffer == *front_buffer);
+
+	/* +1 for fully cover changes */
 	return (pixel_t*)back_buffer - swap_frames[0] + sizeof(int);
 }
 
@@ -2177,7 +2337,11 @@ RE_CleanFrame(void)
 	memset(swap_buffers, 0,
 		vid_buffer_height * vid_buffer_width * sizeof(pixel_t) * 2);
 
+#ifdef USE_SDL3
+	if (!SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch))
+#else
 	if (SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch))
+#endif
 	{
 		Com_Printf("Can't lock texture: %s\n", SDL_GetError());
 		return;
@@ -2196,38 +2360,67 @@ RE_FlushFrame(int vmin, int vmax)
 {
 	int pitch;
 	Uint32 *pixels;
+	SDL_Rect rect;
 
-	if (SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch))
+	if (vmin >= vmax)
 	{
-		Com_Printf("Can't lock texture: %s\n", SDL_GetError());
+		/* Looks like we already updated everything */
 		return;
 	}
-	if (sw_partialrefresh->value)
+
+	if (!texture_high_color)
 	{
-		RE_CopyFrame (pixels, pitch / sizeof(Uint32), vmin, vmax);
-	}
-	else
-	{
-		// On MacOS texture is cleaned up after render,
-		// code have to copy a whole screen to the texture
-		RE_CopyFrame (pixels, pitch / sizeof(Uint32), 0, vid_buffer_height * vid_buffer_width);
+		if (sw_partialrefresh->value)
+		{
+			vmin = vmin / vid_buffer_width;
+			vmax = vmax / vid_buffer_width + 1;
+			if (vmax > vid_buffer_height)
+			{
+				vmax = vid_buffer_height;
+			}
+		}
+		else
+		{
+			// On MacOS texture is cleaned up after render,
+			// code have to copy a whole screen to the texture
+			vmin = 0;
+			vmax = vid_buffer_height;
+		}
+
+		/* set section to update */
+		rect.x = 0;
+		rect.y = vmin;
+		rect.w = vid_buffer_width;
+		rect.h = vmax - vmin;
+
+#ifdef USE_SDL3
+		if (!SDL_LockTexture(texture, &rect, (void**)&pixels, &pitch))
+#else
+		if (SDL_LockTexture(texture, &rect, (void**)&pixels, &pitch))
+#endif
+		{
+			Com_Printf("Can't lock texture: %s\n", SDL_GetError());
+			return;
+		}
+
+		RE_CopyFrame(pixels, pitch / sizeof(Uint32), &rect);
+
+		SDL_UnlockTexture(texture);
 	}
 
-	if ((sw_anisotropic->value > 0) && !fastmoving)
-	{
-		SmoothColorImage(pixels + vmin, vmax - vmin, sw_anisotropic->value);
-	}
-
-	SDL_UnlockTexture(texture);
-
+#ifdef USE_SDL3
+	SDL_RenderTexture(renderer, texture, NULL, NULL);
+#else
 	SDL_RenderCopy(renderer, texture, NULL, NULL);
+#endif
+
 	SDL_RenderPresent(renderer);
 
 	// replace use next buffer
 	swap_current ++;
 	vid_buffer = swap_frames[swap_current&1];
 
-	// All changes flushed
+	/* All changes flushed */
 	VID_NoDamageBuffer();
 }
 
@@ -2238,7 +2431,7 @@ RE_FlushFrame(int vmin, int vmax)
 ** front buffer.
 */
 static void
-RE_EndFrame (void)
+RE_EndFrame(void)
 {
 	int vmin, vmax;
 
@@ -2247,21 +2440,24 @@ RE_EndFrame (void)
 	{
 		vid_minu = 0;
 	}
+
 	if (vid_minv < 0)
 	{
 		vid_minv = 0;
 	}
+
 	if (vid_maxu > vid_buffer_width)
 	{
 		vid_maxu = vid_buffer_width;
 	}
+
 	if (vid_maxv > vid_buffer_height)
 	{
 		vid_maxv = vid_buffer_height;
 	}
 
-	vmin = vid_minu + vid_minv  * vid_buffer_width;
-	vmax = vid_maxu + vid_maxv  * vid_buffer_width;
+	vmin = vid_minu + vid_minv * vid_buffer_width;
+	vmax = vid_maxu + vid_maxv * vid_buffer_width;
 
 	// fix to correct limit
 	if (vmax > (vid_buffer_height * vid_buffer_width))
@@ -2270,7 +2466,7 @@ RE_EndFrame (void)
 	}
 
 	// if palette changed need to flush whole buffer
-	if (!palette_changed)
+	if (!palette_changed && sw_partialrefresh->value)
 	{
 		// search real begin/end of difference
 		vmin = RE_BufferDifferenceStart(vmin, vmax);
@@ -2300,31 +2496,31 @@ SWimp_SetMode(int *pwidth, int *pheight, int mode, int fullscreen )
 {
 	rserr_t retval = rserr_ok;
 
-	R_Printf (PRINT_ALL, "Setting mode %d:", mode );
+	Com_Printf("Setting mode %d:", mode );
 
 	if ((mode >= 0) && !ri.Vid_GetModeInfo( pwidth, pheight, mode ) )
 	{
-		R_Printf(PRINT_ALL, " invalid mode\n");
+		Com_Printf(" invalid mode\n");
 		return rserr_invalid_mode;
 	}
 
 	/* We trying to get resolution from desktop */
 	if (mode == -2)
 	{
-		if(!ri.GLimp_GetDesktopMode(pwidth, pheight))
+		if (!ri.GLimp_GetDesktopMode(pwidth, pheight))
 		{
-			R_Printf(PRINT_ALL, " can't detect mode\n");
+			Com_Printf(" can't detect mode\n");
 			return rserr_invalid_mode;
 		}
 	}
 
-	R_Printf(PRINT_ALL, " %dx%d (vid_fullscreen %i)\n", *pwidth, *pheight, fullscreen);
+	Com_Printf(" %dx%d (vid_fullscreen %i)\n", *pwidth, *pheight, fullscreen);
 
 	if (fullscreen == 2)
 	{
 		int real_height, real_width;
 
-		if(ri.GLimp_GetDesktopMode(&real_width, &real_height))
+		if (ri.GLimp_GetDesktopMode(&real_width, &real_height))
 		{
 			if (real_height)
 			{
@@ -2339,7 +2535,7 @@ SWimp_SetMode(int *pwidth, int *pheight, int mode, int fullscreen )
 			}
 		}
 
-		R_Printf(PRINT_ALL, "Used corrected %dx%d mode\n", *pwidth, *pheight);
+		Com_Printf("Used corrected %dx%d mode\n", *pwidth, *pheight);
 	}
 
 	if (!ri.GLimp_InitGraphics(fullscreen, pwidth, pheight))
@@ -2400,8 +2596,8 @@ SWimp_CreateRender(int width, int height)
 	swap_buffers = malloc(height * width * sizeof(pixel_t) * 2);
 	if (!swap_buffers)
 	{
-		ri.Sys_Error(ERR_FATAL, "%s: Can't allocate swapbuffer.", __func__);
-		// code never returns after ERR_FATAL
+		Com_Error(ERR_FATAL, "%s: Can't allocate swapbuffer.", __func__);
+		/* code never returns after ERR_FATAL */
 		return;
 	}
 	swap_frames[0] = swap_buffers;
@@ -2460,32 +2656,10 @@ SWimp_CreateRender(int width, int height)
 
 	vid_polygon_spans = malloc(sizeof(espan_t) * (height + 1));
 
-	memset(sw_state.currentpalette, 0, sizeof(sw_state.currentpalette));
+	/* Use nontransparent white as default value */
+	memset(sw_state.currentpalette, 255, sizeof(sw_state.currentpalette));
 
 	R_GammaCorrectAndSetPalette( d_8to24table );
-}
-
-// this is only here so the functions in q_shared.c and q_shwin.c can link
-void
-Sys_Error (const char *error, ...)
-{
-	va_list		argptr;
-	char		text[4096]; // MAXPRINTMSG == 4096
-
-	va_start(argptr, error);
-	vsnprintf(text, sizeof(text), error, argptr);
-	va_end(argptr);
-
-	ri.Sys_Error (ERR_FATAL, "%s", text);
-}
-
-void
-Com_Printf(const char *msg, ...)
-{
-	va_list	argptr;
-	va_start(argptr, msg);
-	ri.Com_VPrintf(PRINT_ALL, msg, argptr);
-	va_end(argptr);
 }
 
 /*
@@ -2510,13 +2684,14 @@ R_ScreenShot_f(void)
 
 	if (!buffer)
 	{
-		R_Printf(PRINT_ALL, "R_ScreenShot: Couldn't malloc %d bytes\n", vid_buffer_width * vid_buffer_height * 3);
+		Com_Printf("%s: Couldn't malloc %d bytes\n",
+			__func__, vid_buffer_width * vid_buffer_height * 3);
 		return;
 	}
 
 	for (x=0; x < vid_buffer_width; x ++)
 	{
-		for (y=0; y < vid_buffer_height; y ++) {
+		for (y = 0; y < vid_buffer_height; y ++) {
 			int buffer_pos = y * vid_buffer_width + x;
 			buffer[buffer_pos * 3 + 0] = palette[vid_buffer[buffer_pos] * 4 + 2]; // red
 			buffer[buffer_pos * 3 + 1] = palette[vid_buffer[buffer_pos] * 4 + 1]; // green

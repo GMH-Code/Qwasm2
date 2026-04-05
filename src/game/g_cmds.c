@@ -211,7 +211,7 @@ ValidateSelectedItem(edict_t *ent)
 /*
  * Give items to a client
  */
-void
+static void
 Cmd_Give_f(edict_t *ent)
 {
 	char *name;
@@ -423,7 +423,7 @@ Cmd_Give_f(edict_t *ent)
 /*
  * Sets client to godmode
  */
-void
+static void
 Cmd_God_f(edict_t *ent)
 {
 	char *msg;
@@ -457,7 +457,7 @@ Cmd_God_f(edict_t *ent)
 /*
  * Sets client to notarget
  */
-void
+static void
 Cmd_Notarget_f(edict_t *ent)
 {
 	char *msg;
@@ -491,7 +491,7 @@ Cmd_Notarget_f(edict_t *ent)
 /*
  * argv(0) noclip
  */
-void
+static void
 Cmd_Noclip_f(edict_t *ent)
 {
 	char *msg;
@@ -525,7 +525,7 @@ Cmd_Noclip_f(edict_t *ent)
 /*
  * Use an inventory item
  */
-void
+static void
 Cmd_Use_f(edict_t *ent)
 {
 	int index;
@@ -566,7 +566,7 @@ Cmd_Use_f(edict_t *ent)
 /*
  * Drop an inventory item
  */
-void
+static void
 Cmd_Drop_f(edict_t *ent)
 {
 	int index;
@@ -661,7 +661,7 @@ Cmd_Help_f(edict_t *ent)
 	gi.unicast(ent, true);
 }
 
-void
+static void
 Cmd_Inven_f(edict_t *ent)
 {
 	gclient_t *cl;
@@ -688,7 +688,7 @@ Cmd_Inven_f(edict_t *ent)
 	gi.unicast(ent, true);
 }
 
-void
+static void
 Cmd_InvUse_f(edict_t *ent)
 {
 	gitem_t *it;
@@ -717,7 +717,7 @@ Cmd_InvUse_f(edict_t *ent)
 	it->use(ent, it);
 }
 
-void
+static void
 Cmd_WeapPrev_f(edict_t *ent)
 {
 	gclient_t *cl;
@@ -732,17 +732,25 @@ Cmd_WeapPrev_f(edict_t *ent)
 
 	cl = ent->client;
 
-	if (!cl->pers.weapon)
+	if (g_quick_weap->value && cl->newweapon)
+	{
+		it = cl->newweapon;
+	}
+	else if (cl->pers.weapon)
+	{
+		it = cl->pers.weapon;
+	}
+	else
 	{
 		return;
 	}
 
-	selected_weapon = ITEM_INDEX(cl->pers.weapon);
+	selected_weapon = ITEM_INDEX(it);
 
-	/* scan  for the next valid one */
+	/* scan for the next valid one */
 	for (i = 1; i <= MAX_ITEMS; i++)
 	{
-		index = (selected_weapon + i) % MAX_ITEMS;
+		index = (selected_weapon + MAX_ITEMS - i) % MAX_ITEMS;
 
 		if (!cl->pers.inventory[index])
 		{
@@ -751,26 +759,27 @@ Cmd_WeapPrev_f(edict_t *ent)
 
 		it = &itemlist[index];
 
-		if (!it->use)
-		{
-			continue;
-		}
-
-		if (!(it->flags & IT_WEAPON))
+		if (!it->use || !(it->flags & IT_WEAPON))
 		{
 			continue;
 		}
 
 		it->use(ent, it);
 
-		if (cl->pers.weapon == it)
+		if (cl->newweapon == it)
 		{
+			if (g_quick_weap->value)
+			{
+				cl->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(cl->newweapon->icon);
+				cl->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX(cl->newweapon);
+				cl->pickup_msg_time = level.time + 0.9f;
+			}
 			return; /* successful */
 		}
 	}
 }
 
-void
+static void
 Cmd_WeapNext_f(edict_t *ent)
 {
 	gclient_t *cl;
@@ -785,17 +794,25 @@ Cmd_WeapNext_f(edict_t *ent)
 
 	cl = ent->client;
 
-	if (!cl->pers.weapon)
+	if (g_quick_weap->value && cl->newweapon)
+	{
+		it = cl->newweapon;
+	}
+	else if (cl->pers.weapon)
+	{
+		it = cl->pers.weapon;
+	}
+	else
 	{
 		return;
 	}
 
-	selected_weapon = ITEM_INDEX(cl->pers.weapon);
+	selected_weapon = ITEM_INDEX(it);
 
-	/* scan  for the next valid one */
+	/* scan for the next valid one */
 	for (i = 1; i <= MAX_ITEMS; i++)
 	{
-		index = (selected_weapon + MAX_ITEMS - i) % MAX_ITEMS;
+		index = (selected_weapon + i) % MAX_ITEMS;
 
 		if (!cl->pers.inventory[index])
 		{
@@ -804,26 +821,27 @@ Cmd_WeapNext_f(edict_t *ent)
 
 		it = &itemlist[index];
 
-		if (!it->use)
-		{
-			continue;
-		}
-
-		if (!(it->flags & IT_WEAPON))
+		if (!it->use || !(it->flags & IT_WEAPON))
 		{
 			continue;
 		}
 
 		it->use(ent, it);
 
-		if (cl->pers.weapon == it)
+		if (cl->newweapon == it)
 		{
+			if (g_quick_weap->value)
+			{
+				cl->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(cl->newweapon->icon);
+				cl->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX(cl->newweapon);
+				cl->pickup_msg_time = level.time + 0.9f;
+			}
 			return; /* successful */
 		}
 	}
 }
 
-void
+static void
 Cmd_WeapLast_f(edict_t *ent)
 {
 	gclient_t *cl;
@@ -864,7 +882,7 @@ Cmd_WeapLast_f(edict_t *ent)
 	it->use(ent, it);
 }
 
-void
+static void
 Cmd_InvDrop_f(edict_t *ent)
 {
 	gitem_t *it;
@@ -893,7 +911,7 @@ Cmd_InvDrop_f(edict_t *ent)
 	it->drop(ent, it);
 }
 
-void
+static void
 Cmd_Kill_f(edict_t *ent)
 {
 	if (!ent)
@@ -913,7 +931,7 @@ Cmd_Kill_f(edict_t *ent)
 	player_die(ent, ent, ent, 100000, vec3_origin);
 }
 
-void
+static void
 Cmd_PutAway_f(edict_t *ent)
 {
 	if (!ent)
@@ -955,7 +973,7 @@ PlayerSort(void const *a, void const *b)
 	return 0;
 }
 
-void
+static void
 Cmd_Players_f(edict_t *ent)
 {
 	int i;
@@ -1005,7 +1023,7 @@ Cmd_Players_f(edict_t *ent)
 	gi.cprintf(ent, PRINT_HIGH, "%s\n%i players\n", large, count);
 }
 
-void
+static void
 Cmd_Wave_f(edict_t *ent)
 {
 	int i;
@@ -1129,7 +1147,7 @@ flooded(edict_t *ent)
 	return false;
 }
 
-void
+static void
 Cmd_Say_f(edict_t *ent, qboolean team, qboolean arg0)
 {
 	int j;
@@ -1224,7 +1242,7 @@ Cmd_Say_f(edict_t *ent, qboolean team, qboolean arg0)
 	}
 }
 
-void
+static void
 Cmd_PlayerList_f(edict_t *ent)
 {
 	int i;
@@ -1690,29 +1708,37 @@ static void
 Cmd_CycleWeap_f(edict_t *ent)
 {
 	gitem_t *weap;
+	gclient_t *cl;
+	int num_weaps;
 
 	if (!ent)
 	{
 		return;
 	}
 
-	if (gi.argc() <= 1)
+	num_weaps = gi.argc();
+	if (num_weaps <= 1)
 	{
 		gi.cprintf(ent, PRINT_HIGH, "Usage: cycleweap classname1 classname2 .. classnameN\n");
 		return;
 	}
 
 	weap = cycle_weapon(ent);
-	if (weap)
+	if (!weap) return;
+
+	cl = ent->client;
+	if (cl->pers.inventory[ITEM_INDEX(weap)] <= 0)
 	{
-		if (ent->client->pers.inventory[ITEM_INDEX(weap)] <= 0)
-		{
-			gi.cprintf(ent, PRINT_HIGH, "Out of item: %s\n", weap->pickup_name);
-		}
-		else
-		{
-			weap->use(ent, weap);
-		}
+		gi.cprintf(ent, PRINT_HIGH, "Out of item: %s\n", weap->pickup_name);
+		return;
+	}
+
+	weap->use(ent, weap);
+	if (num_weaps > 3 && cl->newweapon == weap)
+	{
+		cl->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(weap->icon);
+		cl->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX(weap);
+		cl->pickup_msg_time = level.time + 0.7f;
 	}
 }
 

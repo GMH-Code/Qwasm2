@@ -26,6 +26,10 @@
 
 #include <ctype.h>
 
+#ifndef _MSC_VER
+#include <strings.h>
+#endif
+
 #include "../header/shared.h"
 
 #define DEG2RAD(a) (a * M_PI) / 180.0F
@@ -93,7 +97,7 @@ RotatePointAroundVector(vec3_t dst, const vec3_t dir,
 }
 
 void
-AngleVectors(vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
+AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 {
 	float angle;
 	static float sr, sp, sy, cr, cp, cy;
@@ -131,9 +135,8 @@ AngleVectors(vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 }
 
 void
-AngleVectors2(vec3_t value1, vec3_t angles)
+AngleVectors2(const vec3_t value1, vec3_t angles)
 {
-	float forward;
 	float yaw, pitch;
 
 	if ((value1[1] == 0) && (value1[0] == 0))
@@ -152,6 +155,8 @@ AngleVectors2(vec3_t value1, vec3_t angles)
 	}
 	else
 	{
+		float forward;
+
 		if (value1[0])
 		{
 			yaw = ((float)atan2(value1[1], value1[0]) * 180 / M_PI);
@@ -236,7 +241,7 @@ PerpendicularVector(vec3_t dst, const vec3_t src)
 }
 
 void
-R_ConcatRotations(float in1[3][3], float in2[3][3], float out[3][3])
+R_ConcatRotations(const float in1[3][3], const float in2[3][3], float out[3][3])
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
 				in1[0][2] * in2[2][0];
@@ -259,7 +264,7 @@ R_ConcatRotations(float in1[3][3], float in2[3][3], float out[3][3])
 }
 
 void
-R_ConcatTransforms(float in1[3][4], float in2[3][4], float out[3][4])
+R_ConcatTransforms(const float in1[3][4], const float in2[3][4], float out[3][4])
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
 				in1[0][2] * in2[2][0];
@@ -325,7 +330,7 @@ anglemod(float a)
  * This is the slow, general version
  */
 int
-BoxOnPlaneSide2(vec3_t emins, vec3_t emaxs, struct cplane_s *p)
+BoxOnPlaneSide2(const vec3_t emins, const vec3_t emaxs, const struct cplane_s *p)
 {
 	int i;
 	float dist1, dist2;
@@ -367,7 +372,7 @@ BoxOnPlaneSide2(vec3_t emins, vec3_t emaxs, struct cplane_s *p)
  * Returns 1, 2, or 1 + 2
  */
 int
-BoxOnPlaneSide(vec3_t emins, vec3_t emaxs, struct cplane_s *p)
+BoxOnPlaneSide(const vec3_t emins, const vec3_t emaxs, const struct cplane_s *p)
 {
 	float dist1, dist2;
 	int sides;
@@ -467,7 +472,7 @@ ClearBounds(vec3_t mins, vec3_t maxs)
 }
 
 void
-AddPointToBounds(vec3_t v, vec3_t mins, vec3_t maxs)
+AddPointToBounds(const vec3_t v, vec3_t mins, vec3_t maxs)
 {
 	int i;
 	vec_t val;
@@ -488,8 +493,36 @@ AddPointToBounds(vec3_t v, vec3_t mins, vec3_t maxs)
 	}
 }
 
+void
+ClosestPointOnBounds(const vec3_t p, const vec3_t amin, const vec3_t amax, vec3_t out)
+{
+	int i;
+
+	for (i = 0; i < 3; i++)
+	{
+		if (amin[i] > p[i])
+		{
+			out[i] = amin[i];
+		}
+		else if (amax[i] < p[i])
+		{
+			out[i] = amax[i];
+		}
+		else
+		{
+			out[i] = p[i];
+		}
+	}
+}
+
+qboolean
+IsZeroVector(vec3_t v)
+{
+	return (v[0] == 0.0f && v[1] == 0.0f && v[2] == 0.0f);
+}
+
 int
-VectorCompare(vec3_t v1, vec3_t v2)
+VectorCompare(const vec3_t v1, const vec3_t v2)
 {
 	if ((v1[0] != v2[0]) || (v1[1] != v2[1]) || (v1[2] != v2[2]))
 	{
@@ -519,7 +552,7 @@ VectorNormalize(vec3_t v)
 }
 
 vec_t
-VectorNormalize2(vec3_t v, vec3_t out)
+VectorNormalize2(const vec3_t v, vec3_t out)
 {
 	VectorCopy(v, out);
 
@@ -565,31 +598,27 @@ _VectorCopy(vec3_t in, vec3_t out)
 }
 
 void
-CrossProduct(vec3_t v1, vec3_t v2, vec3_t cross)
+CrossProduct(const vec3_t v1, const vec3_t v2, vec3_t cross)
 {
 	cross[0] = v1[1] * v2[2] - v1[2] * v2[1];
 	cross[1] = v1[2] * v2[0] - v1[0] * v2[2];
 	cross[2] = v1[0] * v2[1] - v1[1] * v2[0];
 }
 
+vec_t
+VectorLengthSquared(vec3_t v)
+{
+	return (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
+
 double sqrt(double x);
 
 vec_t
-VectorLength(vec3_t v)
+VectorLength(const vec3_t v)
 {
-	int i;
-	float length;
-
-	length = 0;
-
-	for (i = 0; i < 3; i++)
-	{
-		length += v[i] * v[i];
-	}
-
-	length = (float)sqrt(length);
-
-	return length;
+	return sqrtf((v[0] * v[0]) +
+               (v[1] * v[1]) +
+	       (v[2] * v[2]));
 }
 
 void
@@ -601,11 +630,89 @@ VectorInverse(vec3_t v)
 }
 
 void
-VectorScale(vec3_t in, vec_t scale, vec3_t out)
+VectorInverse2(const vec3_t v, vec3_t out)
+{
+	VectorCopy(v, out);
+	VectorInverse(out);
+}
+
+void
+VectorScale(const vec3_t in, vec_t scale, vec3_t out)
 {
 	out[0] = in[0] * scale;
 	out[1] = in[1] * scale;
 	out[2] = in[2] * scale;
+}
+
+void
+VectorLerp(const vec3_t v1, const vec3_t v2, const vec_t factor, vec3_t out)
+{
+	VectorSubtract(v2, v1, out);
+	VectorScale(out, factor, out);
+	VectorAdd(out, v1, out);
+}
+
+void
+VectorToQuat(const vec3_t v, quat_t out)
+{
+	out[0] = v[0];
+	out[1] = v[1];
+	out[2] = v[2];
+	out[3] = 0.0f;
+}
+
+void
+QuatInverse(const quat_t q, quat_t out)
+{
+	out[0] = -q[0];
+	out[1] = -q[1];
+	out[2] = -q[2];
+	out[3] = q[3];
+}
+
+void
+QuatMultiply(const quat_t q1, const quat_t q2, quat_t out)
+{
+	out[0] = q1[3] * q2[0] + q1[0] * q2[3] + q1[1] * q2[2] - q1[2] * q2[1];
+	out[1] = q1[3] * q2[1] - q1[0] * q2[2] + q1[1] * q2[3] + q1[2] * q2[0];
+	out[2] = q1[3] * q2[2] + q1[0] * q2[1] - q1[1] * q2[0] + q1[2] * q2[3];
+	out[3] = q1[3] * q2[3] - q1[0] * q2[0] - q1[1] * q2[1] - q1[2] * q2[2];
+}
+
+void
+QuatAngleAxis(const vec3_t v, float angle, quat_t out)
+{
+	const vec_t scale = sinf(angle * 0.5f);
+	vec3_t v_out;
+
+	VectorNormalize2(v, v_out);
+	VectorScale(v_out, scale, v_out);
+
+	out[0] = v_out[0];
+	out[1] = v_out[1];
+	out[2] = v_out[2];
+	out[3] = cosf(angle * 0.5f);
+}
+
+void
+RotateVectorByUnitQuat(vec3_t v, quat_t q_unit)
+{
+	quat_t q_vec, q_inv, q_out;
+
+	VectorToQuat(v, q_vec);
+	QuatInverse(q_unit, q_inv);
+	QuatMultiply(q_unit, q_vec, q_out);
+	QuatMultiply(q_out, q_inv, q_out);
+
+	v[0] = q_out[0];
+	v[1] = q_out[1];
+	v[2] = q_out[2];
+}
+
+float
+Q_magnitude(float x, float y)
+{
+	return sqrtf(x * x + y * y);
 }
 
 int
@@ -1031,7 +1138,7 @@ Q_stricmp(const char *s1, const char *s2)
 }
 
 int
-Q_strncasecmp(char *s1, char *s2, int n)
+Q_strncasecmp(const char *s1, const char *s2, int n)
 {
 	int c1, c2;
 
@@ -1068,8 +1175,22 @@ Q_strncasecmp(char *s1, char *s2, int n)
 	return 0; /* strings are equal */
 }
 
+char *Q_strcasestr(const char *haystack, const char *needle)
+{
+	size_t len = strlen(needle);
+
+	for (; *haystack; haystack++)
+	{
+		if (!Q_strncasecmp(haystack, needle, len))
+		{
+			return (char *)haystack;
+		}
+	}
+	return 0;
+}
+
 int
-Q_strcasecmp(char *s1, char *s2)
+Q_strcasecmp(const char *s1, const char *s2)
 {
 	return Q_strncasecmp(s1, s2, 99999);
 }
@@ -1140,6 +1261,66 @@ Q_strlcat(char *dst, const char *src, int size)
 	return (d - dst) + Q_strlcpy(d, src, size);
 }
 
+void
+Q_strdel(char *s, size_t i, size_t n)
+{
+	size_t len;
+
+	if (!n)
+	{
+		return;
+	}
+
+	len = strlen(s);
+
+	if (i >= len || n > (len - i))
+	{
+		return;
+	}
+
+	memmove(s + i, s + i + n, len - i);
+	s[len - n] = '\0';
+}
+
+size_t
+Q_strins(char *dest, const char *src, size_t i, size_t n)
+{
+	size_t dlen;
+	size_t slen;
+
+	if (!src || *src == '\0')
+	{
+		return 0;
+	}
+
+	slen = strlen(src);
+	dlen = strlen(dest);
+
+	if (i > dlen || (dlen + slen + 1) > n)
+	{
+		return 0;
+	}
+
+	memmove(dest + i + slen, dest + i, dlen - i + 1);
+	memcpy(dest + i, src, slen);
+
+	return slen;
+}
+
+qboolean
+Q_strisnum(const char *s)
+{
+	for (; *s != '\0'; s++)
+	{
+		if (!isdigit(*s))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /*
  * An unicode compatible fopen() Wrapper for Windows.
  */
@@ -1187,6 +1368,12 @@ FILE *Q_fopen(const char *file, const char *mode)
 	return fopen(file, mode);
 }
 #endif
+
+int
+Q_sort_stricmp(const void *s1, const void *s2)
+{
+	return Q_stricmp(*(char**)s1, *(char**)s2);
+}
 
 int
 Q_sort_strcomp(const void *s1, const void *s2)

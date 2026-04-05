@@ -59,7 +59,7 @@ cvar_t *showtrace;
 
 // Forward declarations
 #ifndef DEDICATED_ONLY
-int GLimp_GetRefreshRate(void);
+float GLimp_GetRefreshRate(void);
 qboolean R_IsVSyncActive(void);
 #endif
 
@@ -129,7 +129,7 @@ static void
 Qcommon_Buildstring(void)
 {
 	int i;
-	int verLen;
+	size_t verLen;
 	const char* versionString;
 
 
@@ -624,7 +624,7 @@ Qcommon_Frame(int usec)
 	// Calculate target and renderframerate.
 	if (R_IsVSyncActive())
 	{
-		int refreshrate = GLimp_GetRefreshRate();
+		float refreshrate = GLimp_GetRefreshRate();
 
 		// using refreshRate - 2, because targeting a value slightly below the
 		// (possibly not 100% correctly reported) refreshRate would introduce jittering, so only

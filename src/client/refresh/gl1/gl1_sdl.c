@@ -27,12 +27,10 @@
 
 #include "header/local.h"
 
-#include <SDL2/SDL.h>
-
-#if defined(__APPLE__)
-#include <OpenGL/gl.h>
+#ifdef USE_SDL3
+#include <SDL3/SDL.h>
 #else
-#include <GL/gl.h>
+#include <SDL2/SDL.h>
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -45,6 +43,8 @@ static SDL_GLContext context = NULL;
 qboolean IsHighDPIaware = false;
 static qboolean vsyncActive = false;
 
+extern cvar_t *gl1_discardfb;
+
 // ----
 
 /*
@@ -53,6 +53,27 @@ static qboolean vsyncActive = false;
 void
 RI_EndFrame(void)
 {
+	R_ApplyGLBuffer();	// to draw buffered 2D text
+
+#ifdef YQ2_GL1_GLES
+	static const GLenum attachments[3] = {GL_COLOR_EXT, GL_DEPTH_EXT, GL_STENCIL_EXT};
+
+	if (qglDiscardFramebufferEXT)
+	{
+		switch ((int)gl1_discardfb->value)
+		{
+			case 1:
+				qglDiscardFramebufferEXT(GL_FRAMEBUFFER_OES, 3, &attachments[0]);
+				break;
+			case 2:
+				qglDiscardFramebufferEXT(GL_FRAMEBUFFER_OES, 2, &attachments[1]);
+				break;
+			default:
+				break;
+		}
+	}
+#endif
+
 	SDL_GL_SwapWindow(window);
 }
 
@@ -86,8 +107,13 @@ int RI_PrepareForWindow(void)
 	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 
+#ifdef USE_SDL3
+	if (SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8))
+#else
 	if (SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8) == 0)
+#endif
 	{
 		gl_state.stencil = true;
 	}
@@ -96,6 +122,12 @@ int RI_PrepareForWindow(void)
 		gl_state.stencil = false;
 	}
 
+#ifdef YQ2_GL1_GLES
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#endif
+
 	// Let's see if the driver supports MSAA.
 	int msaa_samples = 0;
 
@@ -103,18 +135,26 @@ int RI_PrepareForWindow(void)
 	{
 		msaa_samples = gl_msaa_samples->value;
 
+#ifdef USE_SDL3
+		if (!SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1))
+#else
 		if (SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1) < 0)
+#endif
 		{
-			R_Printf(PRINT_ALL, "MSAA is unsupported: %s\n", SDL_GetError());
+			Com_Printf("MSAA is unsupported: %s\n", SDL_GetError());
 
 			ri.Cvar_SetValue ("r_msaa_samples", 0);
 
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
 		}
+#ifdef USE_SDL3
+		else if (!SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, msaa_samples))
+#else
 		else if (SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, msaa_samples) < 0)
+#endif
 		{
-			R_Printf(PRINT_ALL, "MSAA %ix is unsupported: %s\n", msaa_samples, SDL_GetError());
+			Com_Printf("MSAA %ix is unsupported: %s\n", msaa_samples, SDL_GetError());
 
 			ri.Cvar_SetValue("r_msaa_samples", 0);
 
@@ -155,23 +195,41 @@ void RI_SetVsync(void)
 		vsync = -1;
 	}
 
+#ifdef USE_SDL3
+	if (!SDL_GL_SetSwapInterval(vsync))
+#else
 	if (SDL_GL_SetSwapInterval(vsync) == -1)
+#endif
 	{
 		if (vsync == -1)
 		{
 			// Not every system supports adaptive
 			// vsync, fallback to normal vsync.
-			R_Printf(PRINT_ALL, "Failed to set adaptive vsync, reverting to normal vsync.\n");
+			Com_Printf("Failed to set adaptive vsync, reverting to normal vsync.\n");
 			SDL_GL_SetSwapInterval(1);
 		}
 	}
 
+#ifdef USE_SDL3
+	int vsyncState;
+	if (!SDL_GL_GetSwapInterval(&vsyncState))
+	{
+		Com_Printf("Failed to get vsync state, assuming vsync inactive.\n");
+		vsyncActive = false;
+	}
+	else
+	{
+		vsyncActive = vsyncState ? true : false;
+	}
+#else
 	vsyncActive = SDL_GL_GetSwapInterval() != 0;
 #endif
+
+#endif // __EMSCRIPTEN__
 }
 
 /*
- * Updates the gamma ramp.
+ * Updates the gamma ramp. Only used with SDL2.
  */
 #ifdef __EMSCRIPTEN__
 void
@@ -188,9 +246,14 @@ WASM_UpdateGamma(float gamma)
 void
 RI_UpdateGamma(void)
 {
+// Hardware gamma / gamma ramps are no longer supported with SDL3.
+// There's no replacement and sdl2-compat won't support it either.
+// See https://github.com/libsdl-org/SDL/pull/6617 for the rational.
+// Gamma works with a lookup table when using SDL3 (or GLES1).
 #ifdef __EMSCRIPTEN__
 	WASM_UpdateGamma(vid_gamma->value);
 #else
+#ifndef GL1_GAMMATABLE
 	float gamma = (vid_gamma->value);
 
 	Uint16 ramp[256];
@@ -198,9 +261,10 @@ RI_UpdateGamma(void)
 
 	if (SDL_SetWindowGammaRamp(window, ramp, ramp, ramp) != 0)
 	{
-		R_Printf(PRINT_ALL, "Setting gamma failed: %s\n", SDL_GetError());
+		Com_Printf("Setting gamma failed: %s\n", SDL_GetError());
 	}
-#endif
+#endif // !GL1_GAMMATABLE
+#endif // __EMSCRIPTEN__
 }
 
 /*
@@ -212,7 +276,7 @@ int RI_InitContext(void* win)
 	// Coders are stupid.
 	if (win == NULL)
 	{
-		ri.Sys_Error(ERR_FATAL, "R_InitContext() must not be called with NULL argument!");
+		Com_Error(ERR_FATAL, "%s must not be called with NULL argument!", __func__);
 
 		return false;
 	}
@@ -228,12 +292,27 @@ int RI_InitContext(void* win)
 
 	if (context == NULL)
 	{
-		R_Printf(PRINT_ALL, "R_InitContext(): Creating OpenGL Context failed: %s\n", SDL_GetError());
+		Com_Printf("%s: Creating OpenGL Context failed: %s\n", __func__, SDL_GetError());
 
 		window = NULL;
 
 		return false;
 	}
+
+#ifdef YQ2_GL1_GLES
+
+	// Load GL pointers through GLAD and check context.
+	if( !gladLoadGLES1Loader( (void * (*)(const char *)) SDL_GL_GetProcAddress ) )
+	{
+		Com_Printf("%s ERROR: loading OpenGL ES function pointers failed!\n", __func__);
+		return false;
+	}
+
+	gl_config.major_version = GLVersion.major;
+	gl_config.minor_version = GLVersion.minor;
+	Com_Printf("Initialized OpenGL ES version %d.%d context\n", gl_config.major_version, gl_config.minor_version);
+
+#else
 
 	// Check if it's really OpenGL 1.4.
 	const char* glver = (char *)glGetString(GL_VERSION);
@@ -241,17 +320,23 @@ int RI_InitContext(void* win)
 
 	if (gl_config.major_version < 1 || (gl_config.major_version == 1 && gl_config.minor_version < 4))
 	{
-		R_Printf(PRINT_ALL, "R_InitContext(): Got an OpenGL version %d.%d context - need (at least) 1.4!\n", gl_config.major_version, gl_config.minor_version);
+		Com_Printf("%s: Got an OpenGL version %d.%d context - need (at least) 1.4!\n", __func__, gl_config.major_version, gl_config.minor_version);
 
 		return false;
 	}
+
+#endif
 
 	// Check if we've got the requested MSAA.
 	int msaa_samples = 0;
 
 	if (gl_msaa_samples->value)
 	{
+#ifdef USE_SDL3
+		if (SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples))
+#else
 		if (SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &msaa_samples) == 0)
+#endif
 		{
 			ri.Cvar_SetValue("r_msaa_samples", msaa_samples);
 		}
@@ -265,7 +350,11 @@ int RI_InitContext(void* win)
 
 	if (gl_state.stencil)
 	{
+#ifdef USE_SDL3
+		if (!SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &stencil_bits) || stencil_bits < 8)
+#else
 		if (SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &stencil_bits) < 0 || stencil_bits < 8)
+#endif
 		{
 			gl_state.stencil = false;
 		}
@@ -277,13 +366,21 @@ int RI_InitContext(void* win)
 	// Window title - set here so we can display renderer name in it.
 	char title[40] = {0};
 
+#ifdef YQ2_GL1_GLES
+	snprintf(title, sizeof(title), "Yamagi Quake II %s - OpenGL ES 1.0", YQ2VERSION);
+#else
 	snprintf(title, sizeof(title), "Yamagi Quake II %s - OpenGL 1.4", YQ2VERSION);
+#endif
 	SDL_SetWindowTitle(window, title);
 
 #if SDL_VERSION_ATLEAST(2, 26, 0)
 	// Figure out if we are high dpi aware.
 	int flags = SDL_GetWindowFlags(win);
+#ifdef USE_SDL3
+	IsHighDPIaware = (flags & SDL_WINDOW_HIGH_PIXEL_DENSITY) ? true : false;
+#else
 	IsHighDPIaware = (flags & SDL_WINDOW_ALLOW_HIGHDPI) ? true : false;
+#endif
 #endif
 
 	return true;
@@ -294,7 +391,11 @@ int RI_InitContext(void* win)
  */
 void RI_GetDrawableSize(int* width, int* height)
 {
+#ifdef USE_SDL3
+	SDL_GetWindowSizeInPixels(window, width, height);
+#else
 	SDL_GL_GetDrawableSize(window, width, height);
+#endif
 }
 
 /*
@@ -312,8 +413,29 @@ RI_ShutdownContext(void)
 	{
 		if(context)
 		{
+#ifdef USE_SDL3
+			SDL_GL_DestroyContext(context);
+#else
 			SDL_GL_DeleteContext(context);
+#endif
 			context = NULL;
 		}
 	}
+}
+
+/*
+ * Returns the SDL major version. Implemented
+ * here to not polute gl1_main.c with the SDL
+ * headers.
+ */
+int RI_GetSDLVersion()
+{
+#ifdef USE_SDL3
+	int version = SDL_GetVersion();
+	return SDL_VERSIONNUM_MAJOR(version);
+#else
+	SDL_version ver;
+	SDL_VERSION(&ver);
+	return ver.major;
+#endif
 }

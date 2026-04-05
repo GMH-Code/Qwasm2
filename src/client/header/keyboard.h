@@ -208,11 +208,11 @@ enum QKEYS {
 	// From here on, only gamepad controls must be allowed.
 	// Otherwise, separate bindings (keyboard / controller) menu options will not work.
 
-	K_BTN_A,
-	K_JOY_FIRST_REGULAR = K_BTN_A,
-	K_BTN_B,
-	K_BTN_X,
-	K_BTN_Y,
+	K_BTN_SOUTH,
+	K_JOY_FIRST_BTN = K_BTN_SOUTH,
+	K_BTN_EAST,
+	K_BTN_WEST,
+	K_BTN_NORTH,
 	K_BTN_BACK,
 	K_BTN_GUIDE,
 	K_BTN_START,
@@ -220,31 +220,33 @@ enum QKEYS {
 	K_STICK_RIGHT,
 	K_SHOULDER_LEFT,
 	K_SHOULDER_RIGHT,
-	K_TRIG_LEFT,
-	K_TRIG_RIGHT,
 	K_DPAD_UP,
 	K_DPAD_DOWN,
 	K_DPAD_LEFT,
 	K_DPAD_RIGHT,
 	K_BTN_MISC1,
-	K_PADDLE_1,
-	K_PADDLE_2,
-	K_PADDLE_3,
-	K_PADDLE_4,
-	K_TOUCHPAD,
+	K_PADDLE_RIGHT_1,
+	K_PADDLE_LEFT_1,
+	K_PADDLE_RIGHT_2,
+	K_PADDLE_LEFT_2,
+	K_TOUCHPAD,	// SDL_CONTROLLER_BUTTON_MAX - 1, SDL2 limit
+	K_BTN_MISC2,
+	K_BTN_MISC3,
+	K_BTN_MISC4,
+	K_BTN_MISC5,
+	K_BTN_MISC6,	// SDL_GAMEPAD_BUTTON_COUNT - 1, current SDL3 count
+	K_TRIG_LEFT,	// buttons for triggers (axes)
+	K_TRIG_RIGHT,
 
-	// add other joystick/controller keys before this one
-	// and adjust it accordingly, also remember to add corresponding _ALT key below!
-	K_JOY_LAST_REGULAR = K_TOUCHPAD,
+	// Add other gamepad keys before this one, adjust from SDL 2/3 definitions, and
+	// add the corresponding _ALT key below! Respect the order, must be the same as above.
+	// Also, verify if cl_keyboard.c needs a refactor on its arrays.
 
-	/* Can't be mapped to any action (=> not regular) */
-	K_JOY_BACK,
-
-	K_BTN_A_ALT,
-	K_JOY_FIRST_REGULAR_ALT = K_BTN_A_ALT,
-	K_BTN_B_ALT,
-	K_BTN_X_ALT,
-	K_BTN_Y_ALT,
+	K_BTN_SOUTH_ALT,
+	K_JOY_FIRST_BTN_ALT = K_BTN_SOUTH_ALT,
+	K_BTN_EAST_ALT,
+	K_BTN_WEST_ALT,
+	K_BTN_NORTH_ALT,
 	K_BTN_BACK_ALT,
 	K_BTN_GUIDE_ALT,
 	K_BTN_START_ALT,
@@ -252,30 +254,37 @@ enum QKEYS {
 	K_STICK_RIGHT_ALT,
 	K_SHOULDER_LEFT_ALT,
 	K_SHOULDER_RIGHT_ALT,
-	K_TRIG_LEFT_ALT,
-	K_TRIG_RIGHT_ALT,
 	K_DPAD_UP_ALT,
 	K_DPAD_DOWN_ALT,
 	K_DPAD_LEFT_ALT,
 	K_DPAD_RIGHT_ALT,
 	K_BTN_MISC1_ALT,
-	K_PADDLE_1_ALT,
-	K_PADDLE_2_ALT,
-	K_PADDLE_3_ALT,
-	K_PADDLE_4_ALT,
+	K_PADDLE_RIGHT_1_ALT,
+	K_PADDLE_LEFT_1_ALT,
+	K_PADDLE_RIGHT_2_ALT,
+	K_PADDLE_LEFT_2_ALT,
 	K_TOUCHPAD_ALT,
+	K_BTN_MISC2_ALT,
+	K_BTN_MISC3_ALT,
+	K_BTN_MISC4_ALT,
+	K_BTN_MISC5_ALT,
+	K_BTN_MISC6_ALT,
+	K_TRIG_LEFT_ALT,
+	K_TRIG_RIGHT_ALT,
 
 	K_LAST
 };
 
 extern char		*keybindings[K_LAST];
 extern int		key_repeats[K_LAST];
+extern qboolean	keydown[K_LAST];
 extern int		anykeydown;
 extern char		chat_buffer[];
 extern int		chat_bufferlen;
 extern int		chat_cursorpos;
 extern qboolean	chat_team;
 
+qboolean IN_NumpadIsOn();
 void Char_Event(int key);
 void Key_Event(int key, qboolean down, qboolean special);
 void Key_Init(void);

@@ -85,7 +85,8 @@ extern struct image_s* LoadM8(const char *origname, imagetype_t type, loadimage_
 extern struct image_s* LoadM32(const char *origname, imagetype_t type, loadimage_t load_image);
 extern void FixFileExt(const char *origname, const char *ext, char *filename, size_t size);
 extern void GetPCXPalette(byte **colormap, unsigned *d_8to24table);
-extern void LoadPCX(const char *origname, byte **pic, byte **palette, int *width, int *height);
+extern void LoadPCX(const char *origname, byte **pic, byte **palette, int *width, int *height,
+	int *bitsPerPixel);
 extern void GetPCXInfo(const char *origname, int *width, int *height);
 extern void GetWalInfo(const char *name, int *width, int *height);
 extern void GetM8Info(const char *name, int *width, int *height);
@@ -116,6 +117,8 @@ enum {
 	SURF_DRAWBACKGROUND = 0x40,
 	SURF_UNDERWATER = 0x80
 };
+
+/* in memory representation */
 
 typedef struct mvertex_s
 {
@@ -171,9 +174,13 @@ typedef struct mleaf_s
 	int		area;
 
 	struct msurface_s	**firstmarksurface;
-	int		nummarksurfaces;
+	unsigned int nummarksurfaces;
 	int		key;	/* BSP sequence number for leaf's contents */
 } mleaf_t;
+
+/* screen size info */
+extern refdef_t r_newrefdef;
+extern viddef_t vid;
 
 /* Shared models func */
 typedef struct image_s* (*findimage_t)(const char *name, imagetype_t type);
@@ -213,8 +220,8 @@ extern mleaf_t *Mod_PointInLeaf(const vec3_t p, mnode_t *node);
 #define DLIGHT_CUTOFF 64
 
 typedef void (*marksurfacelights_t)(dlight_t *light, int bit, mnode_t *node,
-	int r_dlightframecount);
-extern void R_MarkLights (dlight_t *light, int bit, mnode_t *node, int r_dlightframecount,
+	int lightframecount);
+extern void R_MarkLights(dlight_t *light, int bit, mnode_t *node, int lightframecount,
 	marksurfacelights_t mark_surface_lights);
 extern struct image_s *R_TextureAnimation(const entity_t *currententity,
 	const mtexinfo_t *tex);

@@ -30,6 +30,7 @@
 #define SUBDIVIDE_SIZE 64
 #define ON_EPSILON 0.1 /* point on plane side epsilon */
 #define MAX_CLIP_VERTS 64
+#define MAX_SUBDIVIDE_VERTS 60
 
 float skyrotate;
 vec3_t skyaxis;
@@ -127,9 +128,9 @@ R_SubdividePolygon(int numverts, float *verts)
 	vec3_t total;
 	float total_s, total_t;
 
-	if (numverts > 60)
+	if (numverts > MAX_SUBDIVIDE_VERTS)
 	{
-		ri.Sys_Error(ERR_DROP, "numverts = %i", numverts);
+		Com_Error(ERR_DROP, "%s: numverts = %i", __func__, numverts);
 	}
 
 	R_BoundPoly(numverts, verts, mins, maxs);
@@ -282,7 +283,7 @@ R_EmitWaterPolys(msurface_t *fa)
 {
 	glpoly_t *p, *bp;
 	float *v;
-	int i;
+	int i, nv;
 	float s, t, os, ot;
 	float scroll;
 	float rdt = r_newrefdef.time;
@@ -296,53 +297,24 @@ R_EmitWaterPolys(msurface_t *fa)
 		scroll = 0;
 	}
 
-	// workaround for lack of VLAs (=> our workaround uses alloca() which is bad in loops)
-#ifdef _MSC_VER
-	int maxNumVerts = 0;
-	for ( glpoly_t* tmp = fa->polys; tmp; tmp = tmp->next )
-	{
-		if (tmp->numverts > maxNumVerts)
-			maxNumVerts = tmp->numverts;
-	}
-
-	YQ2_VLA( GLfloat, tex, 2 * maxNumVerts );
-#endif
-
 	for (bp = fa->polys; bp; bp = bp->next)
 	{
 		p = bp;
-#ifndef _MSC_VER // we have real VLAs, so it's safe to use one in this loop
-        YQ2_VLA(GLfloat, tex, 2*p->numverts);
-#endif
-        unsigned int index_tex = 0;
+		nv = p->numverts;
+		R_SetBufferIndices(GL_TRIANGLE_FAN, nv);
 
-		for ( i = 0, v = p->verts [ 0 ]; i < p->numverts; i++, v += VERTEXSIZE )
+		for ( i = 0, v = p->verts [ 0 ]; i < nv; i++, v += VERTEXSIZE )
 		{
 			os = v [ 3 ];
 			ot = v [ 4 ];
 
-			s = os + r_turbsin [ (int) ( ( ot * 0.125 + r_newrefdef.time ) * TURBSCALE ) & 255 ];
-			s += scroll;
-			tex[index_tex++] = s * ( 1.0 / 64 );
-
+			s = os + r_turbsin [ (int) ( ( ot * 0.125 + rdt ) * TURBSCALE ) & 255 ] + scroll;
 			t = ot + r_turbsin [ (int) ( ( os * 0.125 + rdt ) * TURBSCALE ) & 255 ];
-			tex[index_tex++] = t * ( 1.0 / 64 );
+
+			GLBUFFER_VERTEX( v[0], v[1], v[2] )
+			GLBUFFER_SINGLETEX( s * ( 1.0 / 64 ), t * ( 1.0 / 64 ) )
 		}
-
-		v = p->verts [ 0 ];
-
-        glEnableClientState( GL_VERTEX_ARRAY );
-        glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-
-        glVertexPointer( 3, GL_FLOAT, VERTEXSIZE*sizeof(GLfloat), v );
-        glTexCoordPointer( 2, GL_FLOAT, 0, tex );
-        glDrawArrays( GL_TRIANGLE_FAN, 0, p->numverts );
-
-        glDisableClientState( GL_VERTEX_ARRAY );
-        glDisableClientState( GL_TEXTURE_COORD_ARRAY );
 	}
-
-	YQ2_VLAFREE( tex );
 }
 
 void
@@ -480,7 +452,7 @@ R_ClipSkyPolygon(int nump, vec3_t vecs, int stage)
 
 	if (nump > MAX_CLIP_VERTS - 2)
 	{
-		ri.Sys_Error(ERR_DROP, "R_ClipSkyPolygon: MAX_CLIP_VERTS");
+		Com_Error(ERR_DROP, "%s: MAX_CLIP_VERTS", __func__);
 	}
 
 	if (stage == 6)
@@ -737,7 +709,7 @@ R_DrawSkyBox(void)
 }
 
 void
-RI_SetSky(char *name, float rotate, vec3_t axis)
+RI_SetSky(const char *name, float rotate, vec3_t axis)
 {
 	char	skyname[MAX_QPATH];
 	int		i;
@@ -755,7 +727,7 @@ RI_SetSky(char *name, float rotate, vec3_t axis)
 
 		if (!image)
 		{
-			R_Printf(PRINT_ALL, "%s: can't load %s:%s sky\n",
+			Com_Printf("%s: can't load %s:%s sky\n",
 				__func__, skyname, suf[i]);
 			image = r_notexture;
 		}

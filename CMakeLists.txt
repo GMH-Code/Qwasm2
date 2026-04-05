@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.31 FATAL_ERROR)
 
 # Print a message that using the Makefiles is recommended.
 message(NOTICE: " The CMakeLists.txt is unmaintained. Use the Makefile if possible.")
@@ -64,6 +64,12 @@ endif()
 option(CURL_SUPPORT "cURL support" ON)
 option(OPENAL_SUPPORT "OpenAL support" ON)
 option(SYSTEMWIDE_SUPPORT "Enable systemwide installation of game assets" OFF)
+option(SDL3_SUPPORT "Build against SDL 3 instead of SDL2" OFF)
+option(GL1_RENDERER "Build the GL1 renderer" ON)
+option(GL3_RENDERER "Build the GL3 renderer" ON)
+option(GLES1_RENDERER "Build the GLES1 renderer" OFF)
+option(GLES3_RENDERER "Build the GLES3 renderer" ON)
+option(SOFT_RENDERER "Build the software renderer" ON)
 
 set(SYSTEMDIR "" CACHE STRING "Override the system default directory")
 
@@ -179,15 +185,22 @@ endif()
 # Required libraries to build the different components of the binaries. Find
 # them and add the include/linker directories and flags (in case the package
 # manager find it in a weird place).
-find_package(SDL2 REQUIRED)
-list(APPEND yquake2IncludeDirectories "${SDL2_INCLUDE_DIR}/..")
-list(APPEND yquake2SDLLinkerFlags ${SDL2_LIBRARY})
+if (SDL3_SUPPORT)
+	find_package(SDL3 REQUIRED)
+	add_definitions(-DUSE_SDL3)
+else()
+	find_package(SDL2 REQUIRED)
+	list(APPEND yquake2IncludeDirectories "${SDL2_INCLUDE_DIR}/..")
+	list(APPEND yquake2SDLLinkerFlags ${SDL2_LIBRARY})
+endif()
 
-# We need an OpenGL implementation.
-set(OpenGL_GL_PREFERENCE GLVND)
-find_package(OpenGL REQUIRED)
-list(APPEND yquake2IncludeDirectories ${OPENGL_INCLUDE_DIR})
-list(APPEND yquake2OpenGLLinkerFlags ${OPENGL_LIBRARIES})
+if(GL1_RENDERER)
+     # We need an OpenGL implementation.
+     set(OpenGL_GL_PREFERENCE GLVND)
+     find_package(OpenGL REQUIRED)
+     list(APPEND yquake2IncludeDirectories ${OPENGL_INCLUDE_DIR})
+     list(APPEND yquake2OpenGLLinkerFlags ${OPENGL_LIBRARIES})
+endif()
 
 # backtrace lookup
 # Some systems like Linux has it within the libc some like the BSD, Haiku ...
@@ -417,6 +430,7 @@ set(Client-Source
 	${CLIENT_SRC_DIR}/cl_effects.c
 	${CLIENT_SRC_DIR}/cl_entities.c
 	${CLIENT_SRC_DIR}/cl_input.c
+	${CLIENT_SRC_DIR}/cl_image.c
 	${CLIENT_SRC_DIR}/cl_inventory.c
 	${CLIENT_SRC_DIR}/cl_keyboard.c
 	${CLIENT_SRC_DIR}/cl_lights.c
@@ -430,7 +444,7 @@ set(Client-Source
 	${CLIENT_SRC_DIR}/cl_view.c
 	${CLIENT_SRC_DIR}/curl/download.c
 	${CLIENT_SRC_DIR}/curl/qcurl.c
-	${CLIENT_SRC_DIR}/input/sdl.c
+	${CLIENT_SRC_DIR}/input/gyro.c
 	${CLIENT_SRC_DIR}/menu/menu.c
 	${CLIENT_SRC_DIR}/menu/qmenu.c
 	${CLIENT_SRC_DIR}/menu/videomenu.c
@@ -440,7 +454,6 @@ set(Client-Source
 	${CLIENT_SRC_DIR}/sound/sdl.c
 	${CLIENT_SRC_DIR}/sound/sound.c
 	${CLIENT_SRC_DIR}/sound/wave.c
-	${CLIENT_SRC_DIR}/vid/glimp_sdl.c
 	${CLIENT_SRC_DIR}/vid/vid.c
 	${COMMON_SRC_DIR}/argproc.c
 	${COMMON_SRC_DIR}/clientserver.c
@@ -477,6 +490,18 @@ set(Client-Source
 	${SERVER_SRC_DIR}/sv_world.c
 	)
 
+if(SDL3_SUPPORT)
+	set(Client-SDL-Source
+		${CLIENT_SRC_DIR}/input/sdl3.c
+		${CLIENT_SRC_DIR}/vid/glimp_sdl3.c
+	)
+else()
+	set(Client-SDL-Source
+		${CLIENT_SRC_DIR}/input/sdl2.c
+		${CLIENT_SRC_DIR}/vid/glimp_sdl2.c
+	)
+endif()
+
 set(Client-Header
 	${CLIENT_SRC_DIR}/header/client.h
 	${CLIENT_SRC_DIR}/header/console.h
@@ -484,6 +509,7 @@ set(Client-Header
 	${CLIENT_SRC_DIR}/header/screen.h
 	${CLIENT_SRC_DIR}/curl/header/download.h
 	${CLIENT_SRC_DIR}/curl/header/qcurl.h
+	${CLIENT_SRC_DIR}/input/header/gyro.h
 	${CLIENT_SRC_DIR}/input/header/input.h
 	${CLIENT_SRC_DIR}/menu/header/qmenu.h
 	${CLIENT_SRC_DIR}/sound/header/local.h
@@ -574,6 +600,8 @@ set(GL1-Source
 	${REF_SRC_DIR}/gl1/gl1_surf.c
 	${REF_SRC_DIR}/gl1/gl1_warp.c
 	${REF_SRC_DIR}/gl1/gl1_sdl.c
+	${REF_SRC_DIR}/gl1/gl1_buffer.c
+	${REF_SRC_DIR}/files/common.c
 	${REF_SRC_DIR}/files/models.c
 	${REF_SRC_DIR}/files/pcx.c
 	${REF_SRC_DIR}/files/stb.c
@@ -583,6 +611,8 @@ set(GL1-Source
 	${COMMON_SRC_DIR}/shared/shared.c
 	${COMMON_SRC_DIR}/md4.c
 	)
+
+set(Glad-GLES1-Source ${REF_SRC_DIR}/gl1/glad-gles1/src/glad.c)
 
 set(GL1-Header
 	${REF_SRC_DIR}/ref_shared.h
@@ -595,6 +625,11 @@ set(GL1-Header
 	${REF_SRC_DIR}/gl1/header/model.h
 	${REF_SRC_DIR}/gl1/header/qgl.h
 	${COMMON_SRC_DIR}/header/shared.h
+	)
+
+set(Glad-GLES1-Header
+	${REF_SRC_DIR}/gl1/glad-gles1/include/glad/glad.h
+	${REF_SRC_DIR}/gl1/glad-gles1/include/KHR/khrplatform.h
 	)
 
 set(GL3-Source
@@ -610,6 +645,7 @@ set(GL3-Source
 	${REF_SRC_DIR}/gl3/gl3_surf.c
 	${REF_SRC_DIR}/gl3/gl3_warp.c
 	${REF_SRC_DIR}/gl3/gl3_shaders.c
+	${REF_SRC_DIR}/files/common.c
 	${REF_SRC_DIR}/files/models.c
 	${REF_SRC_DIR}/files/pcx.c
 	${REF_SRC_DIR}/files/stb.c
@@ -664,6 +700,7 @@ set(SOFT-Source
 	${REF_SRC_DIR}/soft/sw_scan.c
 	${REF_SRC_DIR}/soft/sw_sprite.c
 	${REF_SRC_DIR}/soft/sw_surf.c
+	${REF_SRC_DIR}/files/common.c
 	${REF_SRC_DIR}/files/models.c
 	${REF_SRC_DIR}/files/pcx.c
 	${REF_SRC_DIR}/files/stb.c
@@ -686,13 +723,16 @@ set(SOFT-Header
 # Main Quake 2 executable
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-	add_executable(yquake2 WIN32 ${Client-Source} ${Client-Header} ${Platform-Specific-Source}
-			${Backends-Generic-Source})
+	add_executable(yquake2 WIN32 ${Client-Source} ${Client-SDL-Source} ${Client-Header}
+			${Platform-Specific-Source} ${Backends-Generic-Source})
 	set_target_properties(yquake2 PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 			)
 	target_link_libraries(yquake2 ${yquake2LinkerFlags} ${yquake2ClientLinkerFlags}
 			${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
+	if(SDL3_SUPPORT)
+		target_link_libraries(yquake2 SDL3::SDL3)
+	endif()
 
 	if(MSVC AND CMAKE_MAJOR_VERSION GREATER 3 OR ( CMAKE_MAJOR_VERSION EQUAL 3 AND CMAKE_MINOR_VERSION GREATER_EQUAL 6 ))
 		# CMake >= 3.6 supports setting the default project started for debugging (instead of trying to launch ALL_BUILD ...)
@@ -708,13 +748,16 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	add_executable(quake2 WIN32 ${Wrapper-Source})
 	set_target_properties(quake2 PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release)
 else()
-	add_executable(quake2 ${Client-Source} ${Client-Header} ${Platform-Specific-Source}
-			${Backends-Generic-Source})
+	add_executable(quake2 ${Client-Source} ${Client-SDL-Source} ${Client-Header}
+			${Platform-Specific-Source} ${Backends-Generic-Source})
 	set_target_properties(quake2 PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 			)
 	target_link_libraries(quake2 ${yquake2LinkerFlags} ${yquake2ClientLinkerFlags}
-			${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags})
+		${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags})
+	if(SDL3_SUPPORT)
+		target_link_libraries(quake2 SDL3::SDL3)
+	endif()
 endif()
 
 # Quake 2 Dedicated Server
@@ -725,19 +768,17 @@ set_target_properties(q2ded PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 	)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-	target_link_libraries(q2ded ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
+	target_link_libraries(q2ded ${yquake2LinkerFlags} ${yquake2ZLibLinkerFlags} ws2_32 winmm)
 else()
 	target_link_libraries(q2ded ${yquake2LinkerFlags} ${yquake2ServerLinkerFlags} ${yquake2ZLibLinkerFlags})
 endif()
 
 # Build the game dynamic library
 add_library(game MODULE ${Game-Source} ${Game-Header})
-
 set_target_properties(game PROPERTIES
 		PREFIX ""
 		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
 		)
-
 get_property(isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(isMultiConfig) # multi-config, like Visual Studio solution
 	set_target_properties(game PROPERTIES
@@ -750,8 +791,9 @@ else() # single-config, like normal Makefiles
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release/baseq2
 		)
 endif()
-
 target_link_libraries(game ${yquake2LinkerFlags})
+
+if(${GL1_RENDERER})
 
 # Build the GL1 dynamic library
 add_library(ref_gl1 MODULE ${GL1-Source} ${GL1-Header} ${REF-Platform-Specific-Source})
@@ -761,7 +803,15 @@ set_target_properties(ref_gl1 PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
 		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
 		)
-target_link_libraries(ref_gl1 ${yquake2LinkerFlags} ${yquake2OpenGLLinkerFlags} ${yquake2SDLLinkerFlags})
+target_link_libraries(ref_gl1 ${yquake2LinkerFlags} ${yquake2OpenGLLinkerFlags}
+		${yquake2SDLLinkerFlags})
+if(SDL3_SUPPORT)
+	target_link_libraries(ref_gl1 SDL3::SDL3)
+endif()
+
+endif()
+
+if(${GL3_RENDERER})
 
 # Build the GL3 dynamic library
 add_library(ref_gl3 MODULE ${GL3-Source} ${Glad-GL3-Source} ${GL3-Header} ${Glad-GL3-Header} ${REF-Platform-Specific-Source})
@@ -773,6 +823,13 @@ set_target_properties(ref_gl3 PROPERTIES
 		)
 target_include_directories(ref_gl3 PRIVATE ${CMAKE_SOURCE_DIR}/src/client/refresh/gl3/glad/include)
 target_link_libraries(ref_gl3 ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags})
+if(SDL3_SUPPORT)
+	target_link_libraries(ref_gl3 SDL3::SDL3)
+endif()
+
+endif()
+
+if(${GLES3_RENDERER})
 
 # Build the GLES3 dynamic library
 add_library(ref_gles3 MODULE ${GL3-Source} ${Glad-GLES3-Source} ${GL3-Header} ${Glad-GLES3-Header} ${REF-Platform-Specific-Source})
@@ -786,6 +843,13 @@ set_target_properties(ref_gles3 PROPERTIES
 target_include_directories(ref_gles3 PRIVATE ${CMAKE_SOURCE_DIR}/src/client/refresh/gl3/glad-gles3/include)
 target_compile_definitions(ref_gles3 PRIVATE YQ2_GL3_GLES3=1 YQ2_GL3_GLES=1)
 target_link_libraries(ref_gles3 ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags})
+if(SDL3_SUPPORT)
+	target_link_libraries(ref_gles3 SDL3::SDL3)
+endif()
+
+endif()
+
+if(${SOFT_RENDERER})
 
 # Build the soft renderer dynamic library
 add_library(ref_soft MODULE ${SOFT-Source} ${SOFT-Header} ${REF-Platform-Specific-Source})
@@ -796,3 +860,29 @@ set_target_properties(ref_soft PROPERTIES
 		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
 		)
 target_link_libraries(ref_soft ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags})
+if(SDL3_SUPPORT)
+	target_link_libraries(ref_soft SDL3::SDL3)
+endif()
+
+endif()
+
+if(${GLES1_RENDERER})
+
+# Build the GLES1 dynamic library
+add_library(ref_gles1 MODULE ${GL1-Source} ${Glad-GLES1-Source} ${GL1-Header} ${Glad-GLES1-Header} ${REF-Platform-Specific-Source})
+set_target_properties(ref_gles1 PROPERTIES
+		PREFIX ""
+		#COMPILE_DEFINITIONS "YQ2_GL1_GLES=1"
+		LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release
+		SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX}
+		)
+target_include_directories(ref_gles1 PRIVATE ${CMAKE_SOURCE_DIR}/src/client/refresh/gl1/glad-gles1/include)
+target_compile_definitions(ref_gles1 PRIVATE YQ2_GL1_GLES=1)
+target_link_libraries(ref_gles1 ${yquake2LinkerFlags} ${yquake2SDLLinkerFlags})
+if(SDL3_SUPPORT)
+	target_link_libraries(ref_gles1 SDL3::SDL3)
+endif()
+
+endif()
+

@@ -292,7 +292,7 @@ CL_RequestNextDownload(void)
 		precache_check = CS_PLAYERSKINS;
 	}
 
-	/* skins are special, since a player has three 
+	/* skins are special, since a player has three
 	   things to download:  model, weapon model and
 	   skin so precache_check is now *3 */
 	if ((precache_check >= CS_PLAYERSKINS) &&
@@ -543,11 +543,54 @@ CL_DownloadFileName(char *dest, int destlen, char *fn)
 }
 
 /*
+ * Returns true if a file is filtered and
+ * should not be downloaded, false otherwise.
+ */
+static qboolean
+CL_DownloadFilter(const char *filename)
+{
+	if (FS_LoadFile((char *) filename, NULL) != -1)
+	{
+		/* it exists, no need to download */
+		return true;
+	}
+
+	if (strstr(filename, "..") || strchr(filename, ':') || (*filename == '.') || (*filename == '/'))
+	{
+		Com_Printf("Refusing to download a path containing '..' or ':' or starting with '.' or '/': %s\n", filename);
+		return true;
+	}
+
+	if (strstr(filename, ".dll") || strstr(filename, ".dylib") || strstr(filename, ".so"))
+	{
+		Com_Printf("Refusing to download a path containing '.dll', '.dylib' or '.so': %s\n", filename);
+		return true;
+	}
+
+	char *nodownload = strdup(cl_nodownload_list->string);
+	char *nodownload_token = strtok(nodownload, " ");
+	while (nodownload_token != NULL)
+	{
+		Com_Printf("Token: %s\n", nodownload_token);
+		if (Q_strcasestr(filename, nodownload_token))
+		{
+			Com_Printf("Filename is filtered by cl_nodownload_list: %s\n", filename);
+			free(nodownload);
+			return true;
+		}
+		nodownload_token = strtok(NULL, " ");
+	}
+	free(nodownload);
+
+	return false;
+}
+
+/*
  * Returns true if the file exists, otherwise it attempts
  * to start a download from the server.
  */
 qboolean
-CL_CheckOrDownloadFile(char *filename)
+CL_CheckOrDownloadFile(const char *filename)
 {
 	FILE *fp;
 	char name[MAX_OSPATH];
@@ -559,15 +602,8 @@ CL_CheckOrDownloadFile(char *filename)
 		*ptr = '/';
 	}
 
-	if (FS_LoadFile(filename, NULL) != -1)
+	if (CL_DownloadFilter(filename))
 	{
-		/* it exists, no need to download */
-		return true;
-	}
-
-	if (strstr(filename, "..") || strstr(filename, ":") || (*filename == '.') || (*filename == '/'))
-	{
-		Com_Printf("Refusing to download a path with ..: %s\n", filename);
 		return true;
 	}
 
@@ -624,7 +660,7 @@ CL_CheckOrDownloadFile(char *filename)
 	COM_StripExtension(cls.downloadname, cls.downloadtempname);
 	strcat(cls.downloadtempname, ".tmp");
 
-	/* check to see if we already have a tmp for this 
+	/* check to see if we already have a tmp for this
 	   file, if so, try to resume and open the file if
 	   not opened yet */
 	CL_DownloadFileName(name, sizeof(name), cls.downloadtempname);
@@ -674,16 +710,8 @@ CL_Download_f(void)
 
 	Com_sprintf(filename, sizeof(filename), "%s", Cmd_Argv(1));
 
-	if (strstr(filename, ".."))
+	if (CL_DownloadFilter(filename))
 	{
-		Com_Printf("Refusing to download a path with ..\n");
-		return;
-	}
-
-	if (FS_LoadFile(filename, NULL) != -1)
-	{
-		/* it exists, no need to download */
-		Com_Printf("File already exists.\n");
 		return;
 	}
 

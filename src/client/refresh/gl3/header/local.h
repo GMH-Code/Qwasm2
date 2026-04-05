@@ -63,7 +63,7 @@
 		static int show=1; \
 		if(show) { \
 			show = 0; \
-			R_Printf(PRINT_ALL, "STUB: %s() %s\n", __FUNCTION__, msg); \
+			Com_Printf("STUB: %s() %s\n", __FUNCTION__, msg); \
 		} \
 	} while(0);
 #else // .. so make this a no-op in released code
@@ -276,10 +276,6 @@ typedef struct
 extern gl3config_t gl3config;
 extern gl3state_t gl3state;
 
-extern viddef_t vid;
-
-extern refdef_t gl3_newrefdef;
-
 extern int gl3_visframecount; /* bumped when going to a new PVS */
 extern int gl3_framecount; /* used for dlight push checking */
 
@@ -317,7 +313,6 @@ enum {MAX_GL3TEXTURES = 1024};
 
 typedef struct
 {
-	int internal_format;
 	int current_lightmap_texture; // index into gl3state.lightmap_textureIDs[]
 
 	//msurface_t *lightmap_surfaces[MAX_LIGHTMAPS]; - no more lightmap chains, lightmaps are rendered multitextured
@@ -395,6 +390,7 @@ extern qboolean GL3_IsVsyncActive(void);
 extern void GL3_EndFrame(void);
 extern void GL3_SetVsync(void);
 extern void GL3_ShutdownContext(void);
+extern int GL3_GetSDLVersion(void);
 
 // gl3_misc.c
 extern void GL3_InitParticleTexture(void);
@@ -414,13 +410,13 @@ extern const byte* GL3_Mod_ClusterPVS(int cluster, const gl3model_t *model);
 // gl3_draw.c
 extern void GL3_Draw_InitLocal(void);
 extern void GL3_Draw_ShutdownLocal(void);
-extern gl3image_t * GL3_Draw_FindPic(char *name);
-extern void GL3_Draw_GetPicSize(int *w, int *h, char *pic);
+extern gl3image_t * GL3_Draw_FindPic(const char *name);
+extern void GL3_Draw_GetPicSize(int *w, int *h, const char *pic);
 
-extern void GL3_Draw_PicScaled(int x, int y, char *pic, float factor);
-extern void GL3_Draw_StretchPic(int x, int y, int w, int h, char *pic);
+extern void GL3_Draw_PicScaled(int x, int y, const char *pic, float factor);
+extern void GL3_Draw_StretchPic(int x, int y, int w, int h, const char *pic);
 extern void GL3_Draw_CharScaled(int x, int y, int num, float scale);
-extern void GL3_Draw_TileClear(int x, int y, int w, int h, char *pic);
+extern void GL3_Draw_TileClear(int x, int y, int w, int h, const char *pic);
 extern void GL3_DrawFrameBufferObject(int x, int y, int w, int h, GLuint fboTexture, const float v_blend[4]);
 extern void GL3_Draw_Fill(int x, int y, int w, int h, int c);
 extern void GL3_Draw_FadeScreen(void);
@@ -446,7 +442,7 @@ extern gl3image_t *GL3_LoadPic(char *name, byte *pic, int width, int realwidth,
                                int height, int realheight, size_t data_size,
                                imagetype_t type, int bits);
 extern gl3image_t *GL3_FindImage(const char *name, imagetype_t type);
-extern gl3image_t *GL3_RegisterSkin(char *name);
+extern gl3image_t *GL3_RegisterSkin(const char *name);
 extern void GL3_ShutdownImages(void);
 extern void GL3_FreeUnusedImages(void);
 extern qboolean GL3_ImageHasFreeSpace(void);
@@ -475,7 +471,7 @@ extern void GL3_LM_EndBuildingLightmaps(void);
 extern void GL3_EmitWaterPolys(msurface_t *fa);
 extern void GL3_SubdivideSurface(msurface_t *fa, gl3model_t* loadmodel);
 
-extern void GL3_SetSky(char *name, float rotate, vec3_t axis);
+extern void GL3_SetSky(const char *name, float rotate, vec3_t axis);
 extern void GL3_DrawSkyBox(void);
 extern void GL3_ClearSkyBox(void);
 extern void GL3_AddSkySurface(msurface_t *fa);

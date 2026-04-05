@@ -40,7 +40,7 @@ GL3_Draw_InitLocal(void)
 	draw_chars = R_FindPic("conchars", (findimage_t)GL3_FindImage);
 	if (!draw_chars)
 	{
-		ri.Sys_Error(ERR_FATAL, "%s: Couldn't load pics/conchars.pcx",
+		Com_Error(ERR_FATAL, "%s: Couldn't load pics/conchars.pcx",
 			__func__);
 	}
 
@@ -161,13 +161,13 @@ GL3_Draw_CharScaled(int x, int y, int num, float scale)
 }
 
 gl3image_t *
-GL3_Draw_FindPic(char *name)
+GL3_Draw_FindPic(const char *name)
 {
 	return R_FindPic(name, (findimage_t)GL3_FindImage);
 }
 
 void
-GL3_Draw_GetPicSize(int *w, int *h, char *pic)
+GL3_Draw_GetPicSize(int *w, int *h, const char *pic)
 {
 	gl3image_t *gl;
 
@@ -184,13 +184,13 @@ GL3_Draw_GetPicSize(int *w, int *h, char *pic)
 }
 
 void
-GL3_Draw_StretchPic(int x, int y, int w, int h, char *pic)
+GL3_Draw_StretchPic(int x, int y, int w, int h, const char *pic)
 {
 	gl3image_t *gl = R_FindPic(pic, (findimage_t)GL3_FindImage);
 
 	if (!gl)
 	{
-		R_Printf(PRINT_ALL, "Can't find pic: %s\n", pic);
+		Com_Printf("Can't find pic: %s\n", pic);
 		return;
 	}
 
@@ -201,12 +201,12 @@ GL3_Draw_StretchPic(int x, int y, int w, int h, char *pic)
 }
 
 void
-GL3_Draw_PicScaled(int x, int y, char *pic, float factor)
+GL3_Draw_PicScaled(int x, int y, const char *pic, float factor)
 {
 	gl3image_t *gl = R_FindPic(pic, (findimage_t)GL3_FindImage);
 	if (!gl)
 	{
-		R_Printf(PRINT_ALL, "Can't find pic: %s\n", pic);
+		Com_Printf("Can't find pic: %s\n", pic);
 		return;
 	}
 
@@ -222,12 +222,12 @@ GL3_Draw_PicScaled(int x, int y, char *pic, float factor)
  * refresh window.
  */
 void
-GL3_Draw_TileClear(int x, int y, int w, int h, char *pic)
+GL3_Draw_TileClear(int x, int y, int w, int h, const char *pic)
 {
 	gl3image_t *image = R_FindPic(pic, (findimage_t)GL3_FindImage);
 	if (!image)
 	{
-		R_Printf(PRINT_ALL, "Can't find pic: %s\n", pic);
+		Com_Printf("Can't find pic: %s\n", pic);
 		return;
 	}
 
@@ -240,7 +240,7 @@ GL3_Draw_TileClear(int x, int y, int w, int h, char *pic)
 void
 GL3_DrawFrameBufferObject(int x, int y, int w, int h, GLuint fboTexture, const float v_blend[4])
 {
-	qboolean underwater = (gl3_newrefdef.rdflags & RDF_UNDERWATER) != 0;
+	qboolean underwater = (r_newrefdef.rdflags & RDF_UNDERWATER) != 0;
 	gl3ShaderInfo_t* shader = underwater ? &gl3state.si2DpostProcessWater
 	                                     : &gl3state.si2DpostProcess;
 	GL3_UseProgram(shader->shaderProgram);
@@ -248,7 +248,7 @@ GL3_DrawFrameBufferObject(int x, int y, int w, int h, GLuint fboTexture, const f
 
 	if(underwater && shader->uniLmScalesOrTime != -1)
 	{
-		glUniform1f(shader->uniLmScalesOrTime, gl3_newrefdef.time);
+		glUniform1f(shader->uniLmScalesOrTime, r_newrefdef.time);
 	}
 	if(shader->uniVblend != -1)
 	{
@@ -273,7 +273,7 @@ GL3_Draw_Fill(int x, int y, int w, int h, int c)
 
 	if ((unsigned)c > 255)
 	{
-		ri.Sys_Error(ERR_FATAL, "Draw_Fill: bad color");
+		Com_Error(ERR_FATAL, "Draw_Fill: bad color");
 	}
 
 	color.c = d_8to24table[c];

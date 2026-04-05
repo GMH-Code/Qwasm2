@@ -33,7 +33,7 @@ RE_Draw_FindPic
 ================
 */
 image_t *
-RE_Draw_FindPic (char *name)
+RE_Draw_FindPic (const char *name)
 {
 	return R_FindPic(name, (findimage_t)R_FindImage);
 }
@@ -51,7 +51,7 @@ Draw_InitLocal (void)
 	draw_chars = R_FindPic ("conchars", (findimage_t)R_FindImage);
 	if (!draw_chars)
 	{
-		ri.Sys_Error(ERR_FATAL, "%s: Couldn't load pics/conchars.pcx", __func__);
+		Com_Error(ERR_FATAL, "%s: Couldn't load pics/conchars.pcx", __func__);
 	}
 }
 
@@ -144,7 +144,7 @@ RE_Draw_GetPicSize
 =============
 */
 void
-RE_Draw_GetPicSize (int *w, int *h, char *name)
+RE_Draw_GetPicSize (int *w, int *h, const char *name)
 {
 	image_t *image;
 
@@ -177,7 +177,7 @@ RE_Draw_StretchPicImplementation (int x, int y, int w, int h, const image_t *pic
 		(x + w > vid_buffer_width) ||
 		(y + h > vid_buffer_height))
 	{
-		R_Printf(PRINT_ALL, "%s: bad coordinates %dx%d[%dx%d]",
+		Com_Printf("%s: bad coordinates %dx%d[%dx%d]",
 			__func__, x, y, w, h);
 		return;
 	}
@@ -235,7 +235,7 @@ RE_Draw_StretchPicImplementation (int x, int y, int w, int h, const image_t *pic
 				if (picupscale > 1)
 				{
 					int i;
-					int pu = min(height-v, picupscale);
+					int pu = Q_min(height-v, picupscale);
 					pixel_t	*dest_orig = dest;
 
 					// copy first line to fill whole sector
@@ -302,14 +302,14 @@ RE_Draw_StretchPic
 =============
 */
 void
-RE_Draw_StretchPic (int x, int y, int w, int h, char *name)
+RE_Draw_StretchPic (int x, int y, int w, int h, const char *name)
 {
 	image_t	*pic;
 
 	pic = R_FindPic (name, (findimage_t)R_FindImage);
 	if (!pic)
 	{
-		R_Printf(PRINT_ALL, "Can't find pic: %s\n", name);
+		Com_Printf("Can't find pic: %s\n", name);
 		return;
 	}
 	RE_Draw_StretchPicImplementation (x, y, w, h, pic);
@@ -321,10 +321,10 @@ RE_Draw_StretchRaw
 =============
 */
 void
-RE_Draw_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *data, int bits)
+RE_Draw_StretchRaw(int x, int y, int w, int h, int cols, int rows, const byte *data, int bits)
 {
-	image_t	pic;
-	byte	*image_scaled;
+	byte *image_scaled;
+	image_t pic = {0};
 
 	// we have only one image size
 	pic.mip_levels = 1;
@@ -380,14 +380,14 @@ Draw_Pic
 =============
 */
 void
-RE_Draw_PicScaled(int x, int y, char *name, float scale)
+RE_Draw_PicScaled(int x, int y, const char *name, float scale)
 {
-	image_t		*pic;
+	const image_t *pic;
 
 	pic = R_FindPic (name, (findimage_t)R_FindImage);
 	if (!pic)
 	{
-		R_Printf(PRINT_ALL, "Can't find pic: %s\n", name);
+		Com_Printf("Can't find pic: %s\n", name);
 		return;
 	}
 
@@ -406,7 +406,7 @@ refresh window.
 =============
 */
 void
-RE_Draw_TileClear (int x, int y, int w, int h, char *name)
+RE_Draw_TileClear (int x, int y, int w, int h, const char *name)
 {
 	int			i, j;
 	byte		*psrc;
@@ -437,7 +437,7 @@ RE_Draw_TileClear (int x, int y, int w, int h, char *name)
 	pic = R_FindPic (name, (findimage_t)R_FindImage);
 	if (!pic)
 	{
-		R_Printf(PRINT_ALL, "Can't find pic: %s\n", name);
+		Com_Printf("Can't find pic: %s\n", name);
 		return;
 	}
 	x2 = x + w;

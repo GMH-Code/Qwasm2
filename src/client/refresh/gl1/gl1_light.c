@@ -32,56 +32,39 @@ cplane_t *lightplane; /* used as shadow plane */
 vec3_t lightspot;
 static float s_blocklights[34 * 34 * 3];
 
+unsigned char minlight[256];
+
 void
 R_RenderDlight(dlight_t *light)
 {
+	const float rad = light->intensity * 0.35;
 	int i, j;
-	float a;
-	float rad;
+	float vtx[3], a;
 
-	rad = light->intensity * 0.35;
-
-	GLfloat vtx[3*18];
-	GLfloat clr[4*18];
-
-	unsigned int index_vtx = 3;
-	unsigned int index_clr = 0;
-
-	glEnableClientState( GL_VERTEX_ARRAY );
-	glEnableClientState( GL_COLOR_ARRAY );
-
-	clr[index_clr++] = light->color [ 0 ] * 0.2;
-	clr[index_clr++] = light->color [ 1 ] * 0.2;
-	clr[index_clr++] = light->color [ 2 ] * 0.2;
-	clr[index_clr++] = 1;
+	R_SetBufferIndices(GL_TRIANGLE_FAN, 18);
 
 	for ( i = 0; i < 3; i++ )
 	{
 		vtx [ i ] = light->origin [ i ] - vpn [ i ] * rad;
 	}
 
+	GLBUFFER_VERTEX( vtx[0], vtx[1], vtx[2] )
+	GLBUFFER_COLOR( light->color[0] * 51, light->color[1] * 51,
+		light->color[2] * 51, 255 )	// 255 * 0.2 = 51
+
 	for ( i = 16; i >= 0; i-- )
 	{
-		clr[index_clr++] = 0;
-		clr[index_clr++] = 0;
-		clr[index_clr++] = 0;
-		clr[index_clr++] = 1;
-
 		a = i / 16.0 * M_PI * 2;
 
 		for ( j = 0; j < 3; j++ )
 		{
-			vtx[index_vtx++] = light->origin [ j ] + vright [ j ] * cos( a ) * rad
+			vtx[ j ] = light->origin [ j ] + vright [ j ] * cos( a ) * rad
 				+ vup [ j ] * sin( a ) * rad;
 		}
+
+		GLBUFFER_VERTEX( vtx[0], vtx[1], vtx[2] )
+		GLBUFFER_COLOR( 0, 0, 0, 255 )
 	}
-
-	glVertexPointer( 3, GL_FLOAT, 0, vtx );
-	glColorPointer( 4, GL_FLOAT, 0, clr );
-	glDrawArrays( GL_TRIANGLE_FAN, 0, 18 );
-
-	glDisableClientState( GL_VERTEX_ARRAY );
-	glDisableClientState( GL_COLOR_ARRAY );
 }
 
 void
@@ -94,11 +77,12 @@ R_RenderDlights(void)
 	{
 		return;
 	}
+	R_UpdateGLBuffer(buf_flash, 0, 0, 0, 1);
 
 	/* because the count hasn't advanced yet for this frame */
 	r_dlightframecount = r_framecount + 1;
 
-	glDepthMask(0);
+	glDepthMask(GL_FALSE);
 	glDisable(GL_TEXTURE_2D);
 	glShadeModel(GL_SMOOTH);
 	glEnable(GL_BLEND);
@@ -110,16 +94,17 @@ R_RenderDlights(void)
 	{
 		R_RenderDlight(l);
 	}
+	R_ApplyGLBuffer();
 
 	glColor4f(1, 1, 1, 1);
 	glDisable(GL_BLEND);
 	glEnable(GL_TEXTURE_2D);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glDepthMask(1);
+	glDepthMask(GL_TRUE);
 }
 
 void
-R_MarkSurfaceLights(dlight_t *light, int bit, mnode_t *node, int r_dlightframecount)
+R_MarkSurfaceLights(dlight_t *light, int bit, mnode_t *node, int lightframecount)
 {
 	msurface_t	*surf;
 	int			i;
@@ -148,10 +133,10 @@ R_MarkSurfaceLights(dlight_t *light, int bit, mnode_t *node, int r_dlightframeco
 			continue;
 		}
 
-		if (surf->dlightframe != r_dlightframecount)
+		if (surf->dlightframe != lightframecount)
 		{
 			surf->dlightbits = 0;
-			surf->dlightframe = r_dlightframecount;
+			surf->dlightframe = lightframecount;
 		}
 
 		surf->dlightbits |= bit;
@@ -476,7 +461,7 @@ R_BuildLightMap(msurface_t *surf, byte *dest, int stride)
 	if (surf->texinfo->flags &
 		(SURF_SKY | SURF_TRANS33 | SURF_TRANS66 | SURF_WARP))
 	{
-		ri.Sys_Error(ERR_DROP, "R_BuildLightMap called for non-lit surface");
+		Com_Error(ERR_DROP, "%s called for non-lit surface", __func__);
 	}
 
 	smax = (surf->extents[0] >> 4) + 1;
@@ -485,7 +470,7 @@ R_BuildLightMap(msurface_t *surf, byte *dest, int stride)
 
 	if (size > (sizeof(s_blocklights) >> 4))
 	{
-		ri.Sys_Error(ERR_DROP, "Bad s_blocklights size");
+		Com_Error(ERR_DROP, "%s: Bad s_blocklights size", __func__);
 	}
 
 	/* set to full bright if no light data */
@@ -655,9 +640,16 @@ store:
 				a = a * t;
 			}
 
-			dest[0] = r;
-			dest[1] = g;
-			dest[2] = b;
+			if (gl_state.minlight_set)
+			{
+				r = minlight[r];
+				g = minlight[g];
+				b = minlight[b];
+			}
+
+			dest[0] = gammatable[r];
+			dest[1] = gammatable[g];
+			dest[2] = gammatable[b];
 			dest[3] = a;
 
 			bl += 3;
