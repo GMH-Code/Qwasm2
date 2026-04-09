@@ -1651,13 +1651,13 @@ CMod_LoadEntityString(const lump_t *l, const char *name)
 			bufLen = FS_LoadFile(entname, (void **)&buffer);
 			if (buffer == NULL)
 			{
-				Com_Printf("No fixes found as '%s'\n", entname);
+				Com_DPrintf("No fixes found as '%s'\n", entname);
 
 				snprintf(entname, sizeof(entname) -1, "%s.ent", namewe);
 				bufLen = FS_LoadFile(entname, (void **)&buffer);
 				if (buffer != NULL && bufLen > 1)
 				{
-					Com_Printf("Have used '%s' file without content hash.\n", entname);
+					Com_DPrintf("Have used '%s' file without content hash.\n", entname);
 				}
 			}
 		}
