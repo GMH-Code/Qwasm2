@@ -40,11 +40,15 @@ extern int precache_model_skin;
 extern byte *precache_model;
 
 // Forces all downloads to UDP.
+#ifdef USE_CURL
 static qboolean forceudp;
+#endif
 
 // Gives HTTP downloads a second chance after
 // we've fallen trough to UDP downloads.
+#ifdef USE_CURL
 static qboolean httpSecondChance = true;
+#endif
 
 /* This - and some more code down below - is the 'Crazy Fallback
    Magic'. First we're trying to download all files over HTTP with
@@ -62,7 +66,9 @@ static unsigned int precacherIteration;
 static qboolean dont_restart_texture_stage;
 
 // r1q2 searches the global filelist at /, q2pro at /gamedir...
+#ifdef USE_CURL
 static qboolean gamedirForFilelist;
+#endif
 
 static const char *env_suf[6] = {"rt", "bk", "lf", "ft", "up", "dn"};
 
@@ -107,7 +113,9 @@ CL_RequestNextDownload(void)
 	else if (precacherIteration == 2)
 	{
 		// UDP Fallback.
+#ifdef USE_CURL
 		forceudp = true;
+#endif
 	}
 	else
 	{
@@ -510,10 +518,12 @@ CL_RequestNextDownload(void)
 #endif
 
 	/* This map is done, start over for next map. */
+#ifdef USE_CURL
 	forceudp = false;
-	precacherIteration = 0;
 	gamedirForFilelist = false;
 	httpSecondChance = true;
+#endif
+	precacherIteration = 0;
 	dont_restart_texture_stage = false;
 
 #ifdef USE_CURL

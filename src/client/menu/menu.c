@@ -3612,7 +3612,7 @@ M_Menu_Mods_f(void)
  * GAME MENU
  */
 
-static int m_game_cursor;
+// static int m_game_cursor;
 
 static menuframework_s s_game_menu;
 static menuaction_s s_easy_game_action;
@@ -3805,7 +3805,7 @@ M_Menu_Game_f(void)
 	s_game_menu.key  = Game_MenuKey;
 
 	M_PushMenu(&s_game_menu);
-	m_game_cursor = 1;
+	// m_game_cursor = 1;
 }
 
 

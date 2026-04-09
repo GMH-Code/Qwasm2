@@ -34,12 +34,12 @@ static int sound_pain2;
 static int sound_die1;
 static int sound_die2;
 
-static int sound_gunshot;
+// static int sound_gunshot;
 static int sound_weapon_cock;
 static int sound_punch_swing;
 static int sound_punch_hit;
 static int sound_sight;
-static int sound_search;
+// static int sound_search;
 static int sound_idle;
 
 static int  sound_step;
@@ -820,13 +820,13 @@ SP_monster_infantry(edict_t *self)
 	sound_die1 = gi.soundindex("infantry/infdeth1.wav");
 	sound_die2 = gi.soundindex("infantry/infdeth2.wav");
 
-	sound_gunshot = gi.soundindex("infantry/infatck1.wav");
+	// sound_gunshot = gi.soundindex("infantry/infatck1.wav");
 	sound_weapon_cock = gi.soundindex("infantry/infatck3.wav");
 	sound_punch_swing = gi.soundindex("infantry/infatck2.wav");
 	sound_punch_hit = gi.soundindex("infantry/melee2.wav");
 
 	sound_sight = gi.soundindex("infantry/infsght1.wav");
-	sound_search = gi.soundindex("infantry/infsrch1.wav");
+	// sound_search = gi.soundindex("infantry/infsrch1.wav");
 	sound_idle = gi.soundindex("infantry/infidle1.wav");
 
 	self->movetype = MOVETYPE_STEP;

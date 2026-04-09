@@ -33,7 +33,7 @@ struct gladGLversionStruct GLVersion = { 0, 0 };
 #endif
 
 static int max_loaded_major;
-static int max_loaded_minor;
+// static int max_loaded_minor;
 
 static const char *exts = NULL;
 static int num_exts_i = 0;
@@ -502,11 +502,11 @@ static void find_coreGLES1(void) {
 #endif
 
     GLVersion.major = major; GLVersion.minor = minor;
-    max_loaded_major = major; max_loaded_minor = minor;
+    max_loaded_major = major; // max_loaded_minor = minor;
 	GLAD_GL_VERSION_ES_CM_1_0 = (major == 1 && minor >= 0) || major > 1;
 	if (GLVersion.major > 1 || (GLVersion.major >= 1 && GLVersion.minor >= 0)) {
 		max_loaded_major = 1;
-		max_loaded_minor = 0;
+		// max_loaded_minor = 0;
 	}
 }
 

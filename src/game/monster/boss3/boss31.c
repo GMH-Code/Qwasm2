@@ -40,7 +40,7 @@ static int sound_search2;
 static int sound_search3;
 static int sound_attack1;
 static int sound_attack2;
-static int sound_firegun;
+// static int sound_firegun;
 static int sound_step_left;
 static int sound_step_right;
 static int sound_death_hit;
@@ -908,7 +908,7 @@ SP_monster_jorg(edict_t *self)
 	sound_idle = gi.soundindex("boss3/bs3idle1.wav");
 	sound_step_left = gi.soundindex("boss3/step1.wav");
 	sound_step_right = gi.soundindex("boss3/step2.wav");
-	sound_firegun = gi.soundindex("boss3/xfire.wav");
+	// sound_firegun = gi.soundindex("boss3/xfire.wav");
 	sound_death_hit = gi.soundindex("boss3/d_hit.wav");
 
 	MakronPrecache();

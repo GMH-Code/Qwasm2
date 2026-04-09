@@ -163,7 +163,7 @@ static cvar_t *joy_confirm;
 
 // Joystick sensitivity
 static cvar_t *joy_sensitivity;
-static cvar_t *joy_advanced;
+// static cvar_t *joy_advanced;
 static cvar_t *joy_yawspeed;
 static cvar_t *joy_pitchspeed;
 static cvar_t *joy_extra_yawspeed;
@@ -2881,7 +2881,7 @@ IN_Init(void)
 	haptic_feedback_filter = Cvar_Get("joy_haptic_filter", default_haptic_filter, CVAR_ARCHIVE);
 
 	joy_sensitivity = Cvar_Get("joy_sensitivity", "3", CVAR_ARCHIVE);
-	joy_advanced = Cvar_Get("joy_advanced", "0", CVAR_ARCHIVE);
+	// joy_advanced = Cvar_Get("joy_advanced", "0", CVAR_ARCHIVE);
 	joy_yawspeed = Cvar_Get("joy_yawspeed", "160", CVAR_ARCHIVE);
 	joy_pitchspeed = Cvar_Get("joy_pitchspeed", "120", CVAR_ARCHIVE);
 	joy_extra_yawspeed = Cvar_Get("joy_extra_yawspeed", "220", CVAR_ARCHIVE);

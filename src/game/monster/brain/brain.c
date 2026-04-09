@@ -28,11 +28,11 @@
 #include "brain.h"
 
 static int sound_chest_open;
-static int sound_tentacles_extend;
+// static int sound_tentacles_extend;
 static int sound_tentacles_retract;
 static int sound_death;
-static int sound_idle1;
-static int sound_idle2;
+// static int sound_idle1;
+// static int sound_idle2;
 static int sound_idle3;
 static int sound_pain1;
 static int sound_pain2;
@@ -830,11 +830,11 @@ SP_monster_brain(edict_t *self)
 	sound_step2 = 0;
 
 	sound_chest_open = gi.soundindex("brain/brnatck1.wav");
-	sound_tentacles_extend = gi.soundindex("brain/brnatck2.wav");
+	// sound_tentacles_extend = gi.soundindex("brain/brnatck2.wav");
 	sound_tentacles_retract = gi.soundindex("brain/brnatck3.wav");
 	sound_death = gi.soundindex("brain/brndeth1.wav");
-	sound_idle1 = gi.soundindex("brain/brnidle1.wav");
-	sound_idle2 = gi.soundindex("brain/brnidle2.wav");
+	// sound_idle1 = gi.soundindex("brain/brnidle1.wav");
+	// sound_idle2 = gi.soundindex("brain/brnidle2.wav");
 	sound_idle3 = gi.soundindex("brain/brnlens1.wav");
 	sound_pain1 = gi.soundindex("brain/brnpain1.wav");
 	sound_pain2 = gi.soundindex("brain/brnpain2.wav");

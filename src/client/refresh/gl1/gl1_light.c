@@ -28,7 +28,7 @@
 
 int r_dlightframecount;
 vec3_t pointcolor;
-cplane_t *lightplane; /* used as shadow plane */
+// cplane_t *lightplane; /* used as shadow plane */
 vec3_t lightspot;
 static float s_blocklights[34 * 34 * 3];
 
@@ -217,7 +217,7 @@ R_RecursiveLightPoint(mnode_t *node, vec3_t start, vec3_t end)
 
 	/* check for impact on this node */
 	VectorCopy(mid, lightspot);
-	lightplane = plane;
+	// lightplane = plane;
 
 	surf = r_worldmodel->surfaces + node->firstsurface;
 

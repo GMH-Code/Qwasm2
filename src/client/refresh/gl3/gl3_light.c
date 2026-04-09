@@ -31,7 +31,7 @@ extern gl3lightmapstate_t gl3_lms;
 
 int r_dlightframecount;
 static vec3_t pointcolor;
-static cplane_t *lightplane; /* used as shadow plane */
+// static cplane_t *lightplane; /* used as shadow plane */
 vec3_t lightspot;
 
 void
@@ -158,7 +158,7 @@ RecursiveLightPoint(mnode_t *node, vec3_t start, vec3_t end)
 
 	/* check for impact on this node */
 	VectorCopy(mid, lightspot);
-	lightplane = plane;
+	// lightplane = plane;
 
 	surf = gl3_worldmodel->surfaces + node->firstsurface;
 

@@ -1106,17 +1106,19 @@ done:
 	return com_token;
 }
 
-static int paged_total = 0;
+// static int paged_total = 0;
 
 void
 Com_PageInMemory(byte *buffer, int size)
 {
+	/*
 	int i;
 
 	for (i = size - 1; i > 0; i -= 4096)
 	{
 		paged_total += buffer[i];
 	}
+	*/
 }
 
 /*

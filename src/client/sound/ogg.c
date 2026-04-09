@@ -46,7 +46,9 @@ static cvar_t *ogg_shuffle;       /* Shuffle playback */
 static cvar_t *ogg_ignoretrack0;  /* Toggle track 0 playing */
 static cvar_t *ogg_volume;        /* Music volume. */
 static int ogg_curfile;           /* Index of currently played file. */
+#ifdef USE_OPENAL
 static int ogg_numbufs;           /* Number of buffers for OpenAL */
+#endif
 static int ogg_numsamples;        /* Number of sambles read from the current file */
 static int ogg_mapcdtrack;        /* Index of current map cdtrack */
 static ogg_status_t ogg_status;   /* Status indicator. */
@@ -301,7 +303,9 @@ static OGG_Read(void)
 		// samples from the old file.
 		stb_vorbis_close(ogg_file);
 		ogg_status = STOP;
+#ifdef USE_OPENAL
 		ogg_numbufs = 0;
+#endif
 		ogg_numsamples = 0;
 
 		OGG_PlayTrack(va("%d", ogg_curfile), false, false);
@@ -692,7 +696,9 @@ OGG_Stop(void)
 
 	stb_vorbis_close(ogg_file);
 	ogg_status = STOP;
+#ifdef USE_OPENAL
 	ogg_numbufs = 0;
+#endif
 }
 
 /*
@@ -704,9 +710,9 @@ OGG_TogglePlayback(void)
 	if (ogg_status == PLAY)
 	{
 		ogg_status = PAUSE;
+#ifdef USE_OPENAL
 		ogg_numbufs = 0;
 
-#ifdef USE_OPENAL
 		if (sound_started == SS_OAL)
 		{
 			AL_UnqueueRawSamples();

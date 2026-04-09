@@ -110,11 +110,11 @@ static struct model_s *cl_mod_smoke;
 static struct model_s *cl_mod_flash;
 static struct model_s *cl_mod_parasite_segment;
 static struct model_s *cl_mod_grapple_cable;
-static struct model_s *cl_mod_parasite_tip;
+// static struct model_s *cl_mod_parasite_tip;
 static struct model_s *cl_mod_explo4;
 static struct model_s *cl_mod_bfg_explo;
 static struct model_s *cl_mod_powerscreen;
-static struct model_s *cl_mod_plasmaexplo;
+// static struct model_s *cl_mod_plasmaexplo;
 
 static struct model_s *cl_mod_lightning;
 static struct model_s *cl_mod_heatbeam;
@@ -271,7 +271,7 @@ CL_RegisterTEntModels(void)
 	cl_mod_flash = R_RegisterModel("models/objects/flash/tris.md2");
 	cl_mod_parasite_segment = R_RegisterModel("models/monsters/parasite/segment/tris.md2");
 	cl_mod_grapple_cable = R_RegisterModel("models/ctf/segment/tris.md2");
-	cl_mod_parasite_tip = R_RegisterModel("models/monsters/parasite/tip/tris.md2");
+	// cl_mod_parasite_tip = R_RegisterModel("models/monsters/parasite/tip/tris.md2");
 	cl_mod_explo4 = R_RegisterModel("models/objects/r_explode/tris.md2");
 	cl_mod_bfg_explo = R_RegisterModel("sprites/s_bfg2.sp2");
 	cl_mod_powerscreen = R_RegisterModel("models/items/armor/effect/tris.md2");
@@ -332,11 +332,11 @@ CL_ClearTEntModelVars(void)
 	cl_mod_flash = NULL;
 	cl_mod_parasite_segment = NULL;
 	cl_mod_grapple_cable = NULL;
-	cl_mod_parasite_tip = NULL;
+	// cl_mod_parasite_tip = NULL;
 	cl_mod_explo4 = NULL;
 	cl_mod_bfg_explo = NULL;
 	cl_mod_powerscreen = NULL;
-	cl_mod_plasmaexplo = NULL;
+	// cl_mod_plasmaexplo = NULL;
 
 	cl_mod_lightning = NULL;
 	cl_mod_heatbeam = NULL;

@@ -30,12 +30,12 @@
 #define FLIPPER_RUN_SPEED 24
 
 static int sound_chomp;
-static int sound_attack;
+// static int sound_attack;
 static int sound_pain1;
 static int sound_pain2;
 static int sound_death;
-static int sound_idle;
-static int sound_search;
+// static int sound_idle;
+// static int sound_search;
 static int sound_sight;
 
 void flipper_stand(edict_t *self);
@@ -530,9 +530,9 @@ SP_monster_flipper(edict_t *self)
 	sound_pain2 = gi.soundindex("flipper/flppain2.wav");
 	sound_death = gi.soundindex("flipper/flpdeth1.wav");
 	sound_chomp = gi.soundindex("flipper/flpatck1.wav");
-	sound_attack = gi.soundindex("flipper/flpatck2.wav");
-	sound_idle = gi.soundindex("flipper/flpidle1.wav");
-	sound_search = gi.soundindex("flipper/flpsrch1.wav");
+	// sound_attack = gi.soundindex("flipper/flpatck2.wav");
+	// sound_idle = gi.soundindex("flipper/flpidle1.wav");
+	// sound_search = gi.soundindex("flipper/flpsrch1.wav");
 	sound_sight = gi.soundindex("flipper/flpsght1.wav");
 
 	self->movetype = MOVETYPE_STEP;

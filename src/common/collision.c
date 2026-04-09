@@ -88,7 +88,7 @@ static dareaportal_t map_areaportals[MAX_MAP_AREAPORTALS];
 static dvis_t *map_vis = (dvis_t *)map_visibility;
 static int box_headnode;
 static int checkcount;
-static int emptyleaf, solidleaf;
+static int emptyleaf; // , solidleaf;
 static int floodvalid;
 static float *leaf_mins, *leaf_maxs;
 static int leaf_count, leaf_maxcount;
@@ -1393,7 +1393,7 @@ CMod_LoadLeafs(lump_t *l)
 		Com_Error(ERR_DROP, "Map leaf 0 is not CONTENTS_SOLID");
 	}
 
-	solidleaf = 0;
+	// solidleaf = 0;
 	emptyleaf = -1;
 
 	for (i = 1; i < numleafs; i++)
