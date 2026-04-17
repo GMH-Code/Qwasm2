@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Gregory Maynard-Hoare
+ * Copyright (C) 2026 Gregory Maynard-Hoare
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,39 +19,15 @@
  *
  * =======================================================================
  *
- * Quake 2 WebAssembly browser database initialisation code
+ * Quake 2 WebAssembly soft exit headers
  *
  * =======================================================================
  */
 
-#include "header/initfs.h"
+#ifndef WASM_SOFTEXIT_H
+#define WASM_SOFTEXIT_H
 
-#include <emscripten.h>
+void wasm_soft_exit(int exit_code);
+void wasm_soft_exit_fs_check(void);
 
-void wasm_init_fs(void)
-{
-	// Fetch from IDBFS in the background.  This should only be called once!
-	EM_ASM(
-		Module.save_counter = 0;
-		Module.restore_busy = 1;
-		FS.mkdir("/qwasm2");
-		FS.mount(IDBFS, {}, "/qwasm2");
-		console.info("Loading data...");
-		FS.syncfs(true, function (err) {
-			if (err)
-				console.warn("Failed to load data: " + err);
-			else
-				console.info("Data loaded.");
-
-			Module.restore_busy = 0;
-		});
-	);
-}
-
-int wasm_restore_busy(void)
-{
-	// Verify whether IDBFS restore is complete
-	return EM_ASM_INT(
-		return Module.restore_busy;
-	);
-}
+#endif

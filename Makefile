@@ -1095,6 +1095,7 @@ CLIENT_OBJS_ += \
 	src/backends/wasm/capmouse.o \
 	src/backends/wasm/export.o \
 	src/backends/wasm/initfs.o \
+	src/backends/wasm/softexit.o \
 	src/backends/wasm/syncfs.o
 endif
 

@@ -50,6 +50,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include "../wasm/header/softexit.h"
 #endif
 
 // Pointer to game library
@@ -88,6 +89,10 @@ Sys_Error(const char *error, ...)
 	va_end(argptr);
 	fprintf(stderr, "Error: %s\n", string);
 
+#ifdef __EMSCRIPTEN__
+	wasm_soft_exit(1);
+#endif
+
 	exit(1);
 }
 
@@ -108,6 +113,10 @@ Sys_Quit(void)
 	fcntl(0, F_SETFL, fcntl(0, F_GETFL, 0) & ~FNDELAY);
 
 	printf("------------------------------------\n");
+
+#ifdef __EMSCRIPTEN__
+	wasm_soft_exit(0);
+#endif
 
 	exit(0);
 }

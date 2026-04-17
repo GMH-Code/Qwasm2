@@ -32,8 +32,11 @@ void wasm_sync_fs(void)
 {
 	// Sync to IDBFS in the background
 	EM_ASM(
+		Module.save_counter++;
 		console.info("Saving data...");
 		FS.syncfs(function (err) {
+			Module.save_counter--;
+
 			if (err)
 				console.warn("Failed to save data: " + err);
 			else

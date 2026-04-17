@@ -199,6 +199,10 @@
         },
         onRuntimeInitialized: () => {
           outputElement.style.display = 'block';
+        },
+        softExit: (status) => {
+          // Add code to handle exits, e.g. reload the page depending on status
+          console.info('Program exited with code', status);
         }
       };
       Module['arguments'] = window.location.search.length > 1 ? window.location.search.substr(1).split('&') : [];
