@@ -2,7 +2,6 @@
 <html lang="en-us">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Qwasm2</title>
     <style>
       body {
@@ -70,16 +69,16 @@
     </style>
   </head>
   <body>
-    <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>Qwasm2</strong></center></figure>
+    <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><div style="margin-top:0.5em; text-align:center;"><strong>Qwasm2</strong></div></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
-      <progress value="0" max="100" id="progress" hidden=1></progress>  
+      <progress value="0" max="100" id="progress" hidden></progress>
     </div>
     <textarea class="emscripten" id="output" readonly></textarea>
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
-    <a id="exportFile" hidden=1></a>
+    <a id="exportFile" hidden></a>
     
-    <script type='text/javascript'>
+    <script>
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
       var spinnerElement = document.getElementById('spinner');
@@ -194,8 +193,8 @@
         },
         totalDependencies: 0,
         monitorRunDependencies: (left) => {
-          this.totalDependencies = Math.max(this.totalDependencies, left);
-          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+          Module.totalDependencies = Math.max(Module.totalDependencies, left);
+          Module.setStatus(left ? 'Preparing... (' + (Module.totalDependencies-left) + '/' + Module.totalDependencies + ')' : 'All downloads complete.');
         },
         onRuntimeInitialized: () => {
           outputElement.style.display = 'block';
@@ -203,9 +202,9 @@
         softExit: (status) => {
           // Add code to handle exits, e.g. reload the page depending on status
           console.info('Program exited with code', status);
-        }
+        },
+        arguments: window.location.search.length > 1 ? window.location.search.substr(1).split('&') : []
       };
-      Module['arguments'] = window.location.search.length > 1 ? window.location.search.substr(1).split('&') : [];
       Module.setStatus('Downloading...');
       window.onerror = () => {
         Module.setStatus('Exception thrown, see JavaScript console');
